@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>InstantCash Remote</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    body { margin: 0; background: #0f172a; color: #e5e7eb; }
+    .wrap { max-width: 560px; margin: 24px auto; padding: 16px; }
+    .card { background: #111827; border: 1px solid #1f2937; border-radius: 14px; padding: 16px; }
+    h1 { margin: 0 0 12px; font-size: 22px; }
+    h2 { margin: 18px 0 8px; font-size: 16px; color:#cbd5e1; }
+    .row { display: grid; grid-template-columns: 160px 1fr; gap: 10px; align-items: center; margin: 10px 0; }
+    label { font-size: 14px; color: #cbd5e1; }
+    input, select {
+      background: #0b1220; color: #e5e7eb; border: 1px solid #253044; border-radius: 10px;
+      padding: 10px 12px; font-size: 16px; width: 100%; outline: none;
+    }
+    input:focus, select:focus { border-color: #3b82f6; }
+    .btn {
+      width: 100%; border: 0; padding: 12px 14px; font-weight: 600; border-radius: 10px; cursor: pointer;
+      background: #22c55e; color: #052e12; margin-top: 8px; font-size: 16px;
+    }
+    .btn:disabled { opacity: .6; cursor: not-allowed; }
+    .btn.secondary { background: #ef4444; color: #2e0505; }
+    .btn.neutral { background: #3b82f6; color: #06122e; }
+    #msg { margin-top: 10px; font-size: 14px; padding: 10px 12px; border-radius: 10px; background: #0b1220; border: 1px solid #253044; }
+    .ok { border-color:#22c55e; color:#22c55e; }
+    .err { border-color:#ef4444; color:#ef9999; }
+    .muted { color:#9ca3af; }
+    .hint { margin-top: 12px; font-size: 12px; color:#94a3b8; line-height: 1.4; }
+    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>InstantCash Remote</h1>
+
+      <!-- controller + time -->
+      <div class="row">
+        <label for="pin">Controller PIN</label>
+        <input id="pin" type="password" placeholder="2468" autocomplete="off" />
+      </div>
+
+      <div class="row">
+        <label for="time">Select Time</label>
+        <select id="time">
+          <option value="">Choose a time…</option>
+          <!-- options get filled on load -->
+        </select>
+      </div>
+
+      <!-- picks -->
+      <div class="row">
+        <label for="p2">Pick 2</label>
+        <input id="p2" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="12" />
+      </div>
+
+      <div class="row">
+        <label for="p3">Pick 3</label>
+        <input id="p3" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="123" />
+      </div>
+
+      <div class="row">
+        <label for="p4">Pick 4</label>
+        <input id="p4" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="1234" />
+      </div>
+
+      <div class="row">
+        <label for="p5">Pick 5</label>
+        <input id="p5" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="12345" />
+      </div>
+
+      <button id="send" class="btn">Add to Today’s Draws</button>
+
+      <!-- TODAY'S STATE NUMBERS -->
+      <h2>Today’s State Numbers</h2>
+      <div class="row">
+        <label for="state">State / Draw</label>
+        <select id="state">
+          <option value="">Choose a state…</option>
+          <option>Georgia Morning</option>
+          <option>Georgia Midday</option>
+          <option>Georgia Night</option>
+          <option>New Jersey Day</option>
+          <option>New Jersey Night</option>
+          <option>Connecticut Day</option>
+          <option>Connecticut Night</option>
+          <option>Florida Day</option>
+          <option>Florida Night</option>
+          <option>Pennsylvania Day</option>
+          <option>Pennsylvania Night</option>
+          <option>New York Day</option>
+          <option>New York Night</option>
+        </select>
+      </div>
+
+      <div class="grid2">
+        <div>
+          <label for="sp3">State Pick 3</label>
+          <input id="sp3" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="123" />
+        </div>
+        <div>
+          <label for="sp4">State Pick 4</label>
+          <input id="sp4" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="1234" />
+        </div>
+      </div>
+
+      <button id="sendState" class="btn neutral">Add Today’s State Numbers</button>
+
+      <!-- RESET (two-step confirm) -->
+      <button id="reset" class="btn secondary">Reset All</button>
+
+      <div id="msg"></div>
+
+      <div class="hint">
+        This remote talks to your server at <code>/api/remote</code> on the same device/network.
+        Keep the main screen open on your computer to see changes live.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ------- helpers -------
+    function show(id, text, cls) {
+      const el = document.getElementById(id);
+      el.className = cls || "";
+      el.textContent = text;
+    }
+    function fillTimes() {
+      const sel = document.getElementById('time');
+      for (let h = 10; h < 22; h++) {
+        for (const m of [0, 30]) {
+          const ampm = h >= 12 ? 'PM' : 'AM';
+          const displayHour = ((h + 11) % 12) + 1; // 13->1, 12->12
+          const label = `${displayHour}:${m === 0 ? '00' : '30'} ${ampm}`;
+          const opt = document.createElement('option');
+          opt.value = label;
+          opt.textContent = label;
+          sel.appendChild(opt);
+        }
+      }
+    }
+    function cleanDigits(str) { return (str || "").replace(/\D+/g, ""); }
+    function validatePicks(p2, p3, p4, p5) {
+      const hasAny = !!(p2 || p3 || p4 || p5);
+      if (!hasAny) return "Enter at least one of Pick 2, Pick 3, Pick 4 or Pick 5.";
+      if (p2 && p2.length !== 2) return "Pick 2 must be exactly 2 digits.";
+      if (p3 && p3.length !== 3) return "Pick 3 must be exactly 3 digits.";
+      if (p4 && p4.length !== 4) return "Pick 4 must be exactly 4 digits.";
+      if (p5 && p5.length !== 5) return "Pick 5 must be exactly 5 digits.";
+      return null;
+    }
+
+    // ------- main -------
+    document.addEventListener('DOMContentLoaded', () => {
+      fillTimes();
+
+      const sendBtn = document.getElementById('send');
+      const resetBtn = document.getElementById('reset');
+      const sendStateBtn = document.getElementById('sendState');
+
+      // track two-step confirm for Reset
+      let resetArmed = false;
+      let resetTimer = null;
+
+      // Add to Today's Draws
+      sendBtn.addEventListener('click', async () => {
+        const pin = document.getElementById('pin').value.trim();
+        const selectedTime = document.getElementById('time').value.trim();
+        const p2 = cleanDigits(document.getElementById('p2').value);
+        const p3 = cleanDigits(document.getElementById('p3').value);
+        const p4 = cleanDigits(document.getElementById('p4').value);
+        const p5 = cleanDigits(document.getElementById('p5').value);
+
+        if (!pin) { show('msg', 'Enter PIN', 'err'); return; }
+        if (!selectedTime) { show('msg', 'Select a time', 'err'); return; }
+
+        const err = validatePicks(p2, p3, p4, p5);
+        if (err) { show('msg', '❌ ' + err, 'err'); return; }
+
+        const url = `${window.location.origin}/api/remote`;
+        show('msg', 'SENDING…', 'muted');
+        sendBtn.disabled = true;
+
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pin, selectedTime, pick2: p2, pick3: p3, pick4: p4, pick5: p5 })
+          });
+          const data = await res.json();
+          if (data.ok) {
+            show('msg', '✅ Sent! Check the main screen.', 'ok');
+            document.getElementById('p2').value = '';
+            document.getElementById('p3').value = '';
+            document.getElementById('p4').value = '';
+            document.getElementById('p5').value = '';
+          } else {
+            show('msg', `❌ ${data.error || 'Server rejected the request'}`, 'err');
+          }
+        } catch (e) {
+          show('msg', '❌ Network error (cannot reach /api/remote)', 'err');
+        } finally {
+          sendBtn.disabled = false;
+        }
+      });
+
+      // Add Today's State Numbers
+      sendStateBtn.addEventListener('click', async () => {
+        const pin = document.getElementById('pin').value.trim();
+        const state = document.getElementById('state').value.trim();
+        const sp3 = cleanDigits(document.getElementById('sp3').value);
+        const sp4 = cleanDigits(document.getElementById('sp4').value);
+
+        if (!pin) { show('msg', 'Enter PIN', 'err'); return; }
+        if (!state) { show('msg', 'Choose a state/draw', 'err'); return; }
+        if (!sp3 && !sp4) { show('msg', 'Enter State Pick 3 or Pick 4', 'err'); return; }
+        if (sp3 && sp3.length !== 3) { show('msg', 'State Pick 3 must be exactly 3 digits.', 'err'); return; }
+        if (sp4 && sp4.length !== 4) { show('msg', 'State Pick 4 must be exactly 4 digits.', 'err'); return; }
+
+        const url = `${window.location.origin}/api/remote`;
+        show('msg', 'SENDING…', 'muted');
+        sendStateBtn.disabled = true;
+
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              pin,
+              stateEntries: [{ state, pick3: sp3, pick4: sp4, type: 'today' }]
+            })
+          });
+          const data = await res.json();
+          if (data.ok) {
+            show('msg', `✅ Added today’s state numbers for ${state}.`, 'ok');
+            // keep the state selected so you can keep sending; clear the digits
+            document.getElementById('sp3').value = '';
+            document.getElementById('sp4').value = '';
+          } else {
+            show('msg', `❌ ${data.error || 'Server rejected the request'}`, 'err');
+          }
+        } catch (e) {
+          show('msg', '❌ Network error (cannot reach /api/remote)', 'err');
+        } finally {
+          sendStateBtn.disabled = false;
+        }
+      });
+
+      // Reset All (two-step confirm)
+      resetBtn.addEventListener('click', async () => {
+        const pin = document.getElementById('pin').value.trim();
+        if (!pin) { show('msg', 'Enter PIN', 'err'); return; }
+
+        if (!resetArmed) {
+          resetArmed = true;
+          const originalText = resetBtn.textContent;
+          resetBtn.textContent = 'Click again to CONFIRM reset';
+          show('msg', '⚠ Are you sure? Click reset again within 8 seconds to confirm.', 'muted');
+
+          // auto-disarm after 8s
+          resetTimer = setTimeout(() => {
+            resetArmed = false;
+            resetBtn.textContent = originalText;
+            show('msg', 'Reset cancelled.', 'muted');
+          }, 8000);
+          return;
+        }
+
+        // second click within window -> perform reset
+        clearTimeout(resetTimer);
+        resetArmed = false;
+        resetBtn.textContent = 'Reset All';
+
+        const url = `${window.location.origin}/api/remote`;
+        show('msg', 'SENDING…', 'muted');
+        resetBtn.disabled = true;
+
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pin, action: 'resetAll' })
+          });
+          const data = await res.json();
+          if (data.ok) {
+            show('msg', '🧹 All cleared on the main screen.', 'ok');
+          } else {
+            show('msg', `❌ ${data.error || 'Reset failed'}`, 'err');
+          }
+        } catch (e) {
+          show('msg', '❌ Network error (cannot reach /api/remote)', 'err');
+        } finally {
+          resetBtn.disabled = false;
+        }
+      });
+    });
+  </script>
+</body>
+</html>

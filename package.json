@@ -1,12 +1,8 @@
 {
-  "name": "my-v0-project",
-  "version": "0.1.0",
-  "private": true,
   "scripts": {
+    "dev": "node server.js",
     "build": "next build",
-    "dev": "next dev",
-    "lint": "next lint",
-    "start": "next start"
+    "start": "NODE_ENV=production node server.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -44,6 +40,7 @@
     "cmdk": "latest",
     "date-fns": "4.1.0",
     "embla-carousel-react": "latest",
+    "express": "^5.1.0",
     "geist": "latest",
     "input-otp": "latest",
     "lucide-react": "^0.454.0",
@@ -55,6 +52,8 @@
     "react-hook-form": "latest",
     "react-resizable-panels": "latest",
     "recharts": "latest",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
     "sonner": "latest",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",

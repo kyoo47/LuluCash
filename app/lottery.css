@@ -1406,3 +1406,70 @@
     font-size: 1.25rem;
   }
 }
+/* ===== Infinite marquee for state results ===== */
+.state-results-viewport {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  /* optional: some padding so cards aren’t glued to the edges */
+  padding-block: 6px;
+}
+
+.state-results-track {
+  display: flex;
+  width: max-content;               /* let content decide its width */
+  gap: 12px;
+  animation: state-marquee 40s linear infinite;
+  will-change: transform;
+}
+
+.state-results-loop {
+  display: flex;
+  gap: 12px;
+}
+
+/* Move exactly one loop width to the left (because we render two loops) */
+@keyframes state-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Accessibility: respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .state-results-track {
+    animation: none;
+    transform: none;
+  }
+}
+/* === Infinite ticker (JS-driven) === */
+.state-ticker {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  padding-block: 6px; /* optional breathing room */
+}
+
+.state-track {
+  display: flex;
+  align-items: stretch;
+  will-change: transform;
+  transform: translateX(0); /* JS updates this */
+}
+
+/* We’ll measure margins in JS so slides realign perfectly */
+.state-result-box {
+  margin-right: 12px;      /* spacing between cards */
+  flex: 0 0 auto;          /* don't shrink */
+}
+
+/* Accessibility: disable motion if user asks */
+@media (prefers-reduced-motion: reduce) {
+  .state-track {
+    transform: none !important;
+  }
+}
+

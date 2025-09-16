@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>InstantCash Remote (Mobile)</title>
+  <style>
+    :root{
+      --bg:#0b1020; --card:#11162a; --ink:#eef2ff; --muted:#8fa0d1;
+      --line:#1f2a44; --line2:#283455; --brand:#2d5cff; --danger:#c03636;
+      --chip:#0e1430; --chipOn:#22306b; --ok:#22c55e; --err:#f43f5e;
+    }
+    html, body { margin:0; padding:0; background:var(--bg); color:var(--ink);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent; }
+    .wrap { max-width: 560px; margin: 0 auto; padding: 16px; }
+    h1 { font-size: 20px; margin: 8px 0 12px; }
+    .card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 12px 0;
+      box-shadow: 0 6px 20px rgba(0,0,0,.25);
+    }
+    label { display:block; font-size:12px; opacity:.9; margin-bottom:4px; }
+    input, button, textarea {
+      width:100%; box-sizing: border-box; padding:10px 12px; border-radius:10px;
+      border:1px solid var(--line2); background: var(--chip); color: var(--ink); outline: none;
+    }
+    input::placeholder{ color:#93a2d8; }
+    textarea{ min-height:70px; resize:vertical; }
+    button{ background: var(--brand); border:1px solid var(--brand); font-weight:600; }
+    button:active{ transform: translateY(1px); }
+    .btn-secondary{ background:#172042; border-color:#2a3a71; }
+    .btn-danger{ background: var(--danger); border-color:var(--danger); }
+    .btn-outline{ background:transparent; border:1px solid #3a4a7a; color:var(--ink); }
+    .row{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .row-3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+    .stack-8 > * + *{ margin-top:8px; }
+    .stack-12 > * + *{ margin-top:12px; }
+    .muted{ color:var(--muted); font-size:12px; }
+    .ok{ color:var(--ok); }
+    .err{ color:var(--err); }
+
+    /* Chips */
+    .chips{ display:flex; flex-wrap: wrap; gap:8px; }
+    .chip{
+      background: var(--chip); border:1px solid var(--line2); color:var(--ink);
+      padding:10px 12px; border-radius:999px; font-size:14px; line-height:1; user-select:none;
+      cursor:pointer;
+    }
+    .chip:active{ transform: translateY(1px); }
+    .chip.active{ background: var(--chipOn); border-color:#3a4a7a; }
+
+    /* Lists */
+    .list{ margin:6px 0 0; padding:0; list-style:none; }
+    .li{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:8px 10px; border:1px solid #26325b; border-radius:10px; margin-top:8px; background:#0d1330;
+    }
+    .li small{ color:#9fb0e5; }
+    .li .x{ border:none; background:transparent; color:#e3e9ff; font-size:16px; width:32px; }
+
+    /* Make inputs truly numeric-friendly */
+    input[type="text"][inputmode="numeric"]{
+      font-variant-numeric: tabular-nums;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>InstantCash Remote</h1>
+
+    <!-- PIN -->
+    <div class="card stack-12">
+      <div>
+        <label>Controller PIN</label>
+        <input id="pin" inputmode="numeric" pattern="[0-9]*" placeholder="2468" />
+      </div>
+      <div class="muted">Required for every action.</div>
+    </div>
+
+    <!-- Today's draw numbers -->
+    <div class="card stack-12">
+      <div>
+        <label>Select Draw Time</label>
+        <div id="timeChips" class="chips"></div>
+        <div id="timeSelected" class="muted" style="margin-top:6px;"></div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Pick 2</label>
+          <input id="p2" maxlength="2" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 12" />
+        </div>
+        <div>
+          <label>Pick 3</label>
+          <input id="p3" maxlength="3" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 123" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Pick 4</label>
+          <input id="p4" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 1234" />
+        </div>
+        <div>
+          <label>Pick 5</label>
+          <input id="p5" maxlength="5" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 12345" />
+        </div>
+      </div>
+
+      <button id="btn-send-today">Add to Today’s Draws</button>
+      <div id="status-today" class="muted"></div>
+    </div>
+
+    <!-- State Entries builder -->
+    <div class="card stack-12">
+      <div style="display:flex;align-items:center;gap:8px;justify-content:space-between">
+        <div class="muted">State Entries</div>
+        <small class="muted">Tap a state, pick type, fill digits, add.</small>
+      </div>
+
+      <div>
+        <label>State</label>
+        <div id="stateChips" class="chips"></div>
+        <div id="stateSelected" class="muted" style="margin-top:6px;"></div>
+      </div>
+
+      <div>
+        <label>Type</label>
+        <div class="chips" id="typeChips">
+          <div class="chip active" data-type="today">Today</div>
+          <div class="chip" data-type="yesterday">Yesterday</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Pick 3</label>
+          <input id="sP3" maxlength="3" inputmode="numeric" pattern="[0-9]*" placeholder="123 (optional)" />
+        </div>
+        <div>
+          <label>Pick 4</label>
+          <input id="sP4" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="1234 (optional)" />
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="btn-add-entry" class="btn-secondary">+ Add Entry</button>
+        <button id="btn-clear-entries" class="btn-outline">Clear Entries</button>
+      </div>
+
+      <ul id="entryList" class="list"></ul>
+
+      <button id="btn-send-entries">Send State Entries</button>
+      <div id="status-state" class="muted"></div>
+    </div>
+
+    <!-- Reset All (two-tap confirm) -->
+    <div class="card stack-8">
+      <div class="muted">Danger zone</div>
+      <button id="btn-reset" class="btn-danger">Reset All</button>
+      <div id="status-reset" class="muted"></div>
+    </div>
+
+    <div class="card">
+      <div class="muted">
+        Device time is for display only. Server uses New York time for draw windows.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- constants ----------
+    const STATES = [
+      "Georgia Morning","Georgia Midday","Georgia Night",
+      "New Jersey Day","New Jersey Night",
+      "Connecticut Day","Connecticut Night",
+      "Florida Day","Florida Night",
+      "Pennsylvania Day","Pennsylvania Night",
+      "New York Day","New York Night"
+    ];
+
+    function buildTimeOptions() {
+      const times = [];
+      for (let hour = 10; hour < 22; hour++) {
+        const displayHour = hour > 12 ? hour - 12 : hour;
+        const ampm = hour >= 12 ? "PM" : "AM";
+        times.push(`${displayHour}:00 ${ampm}`);
+        times.push(`${displayHour}:30 ${ampm}`);
+      }
+      return times;
+    }
+
+    // ---------- elements ----------
+    const pinEl = document.getElementById("pin");
+
+    // today draw
+    const timeChipsEl = document.getElementById("timeChips");
+    const timeSelectedEl = document.getElementById("timeSelected");
+    const p2El = document.getElementById("p2");
+    const p3El = document.getElementById("p3");
+    const p4El = document.getElementById("p4");
+    const p5El = document.getElementById("p5");
+    const statusTodayEl = document.getElementById("status-today");
+    const btnSendToday = document.getElementById("btn-send-today");
+
+    // state entries
+    const stateChipsEl = document.getElementById("stateChips");
+    const stateSelectedEl = document.getElementById("stateSelected");
+    const typeChipsEl = document.getElementById("typeChips");
+    const sP3El = document.getElementById("sP3");
+    const sP4El = document.getElementById("sP4");
+    const btnAddEntry = document.getElementById("btn-add-entry");
+    const btnClearEntries = document.getElementById("btn-clear-entries");
+    const btnSendEntries = document.getElementById("btn-send-entries");
+    const entryListEl = document.getElementById("entryList");
+    const statusStateEl = document.getElementById("status-state");
+
+    // reset
+    const btnReset = document.getElementById("btn-reset");
+    const statusResetEl = document.getElementById("status-reset");
+
+    // ---------- helpers ----------
+    function onlyDigits(str) { return (str || "").replace(/[^0-9]/g, ""); }
+    function toast(el, text, ok = true) {
+      el.textContent = text; el.className = ok ? "muted ok" : "muted err";
+      setTimeout(() => { el.textContent = ""; el.className = "muted"; }, 2200);
+    }
+    async function postJSON(url, body) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return res.json();
+    }
+    function makeChip(text, groupEl, onPick) {
+      const d = document.createElement("div");
+      d.className = "chip";
+      d.textContent = text;
+      d.addEventListener("click", () => onPick(d, text));
+      groupEl.appendChild(d);
+      return d;
+    }
+    function selectExclusive(chipEl, groupEl) {
+      Array.from(groupEl.children).forEach(n => n.classList.remove("active"));
+      chipEl.classList.add("active");
+    }
+
+    // numeric guard
+    [p2El, p3El, p4El, p5El, sP3El, sP4El, pinEl].forEach((el) => {
+      el.addEventListener("input", () => {
+        const max = el.getAttribute("maxlength");
+        let v = onlyDigits(el.value);
+        if (max) v = v.slice(0, parseInt(max,10));
+        el.value = v;
+      });
+    });
+
+    // ---------- state: selections ----------
+    let selectedTime = "";
+    let selectedState = "";
+    let selectedType = "today";
+    const builtEntries = [];
+
+    // ---------- build time chips ----------
+    buildTimeOptions().forEach(t => {
+      makeChip(t, timeChipsEl, (chip, value) => {
+        selectExclusive(chip, timeChipsEl);
+        selectedTime = value;
+        timeSelectedEl.textContent = `Selected: ${value}`;
+      });
+    });
+
+    // ---------- build state chips ----------
+    STATES.forEach(st => {
+      makeChip(st, stateChipsEl, (chip, value) => {
+        selectExclusive(chip, stateChipsEl);
+        selectedState = value;
+        stateSelectedEl.textContent = `Selected: ${value}`;
+      });
+    });
+
+    // ---------- type chips ----------
+    Array.from(typeChipsEl.children).forEach(chip => {
+      chip.addEventListener("click", () => {
+        selectExclusive(chip, typeChipsEl);
+        selectedType = chip.getAttribute("data-type") || "today";
+      });
+    });
+
+    // ---------- actions ----------
+    btnSendToday.addEventListener("click", async () => {
+      const pin = onlyDigits(pinEl.value);
+      if (!pin) return toast(statusTodayEl, "Enter PIN", false);
+      if (!selectedTime) return toast(statusTodayEl, "Pick a draw time", false);
+
+      const body = {
+        pin,
+        selectedTime,
+        pick2: p2El.value,
+        pick3: p3El.value,
+        pick4: p4El.value,
+        pick5: p5El.value
+      };
+      statusTodayEl.textContent = "Sending…";
+      const resp = await postJSON("/api/remote", body);
+      if (resp?.ok) {
+        toast(statusTodayEl, "Added ✅", true);
+        p2El.value = ""; p3El.value = ""; p4El.value = ""; p5El.value = "";
+      } else {
+        toast(statusTodayEl, resp?.error || "Failed", false);
+      }
+    });
+
+    function renderEntries() {
+      entryListEl.innerHTML = "";
+      builtEntries.forEach((e, idx) => {
+        const li = document.createElement("li");
+        li.className = "li";
+        const left = document.createElement("div");
+        left.innerHTML = `<strong>${e.state}</strong> <small>(${e.type})</small>
+                          <div class="muted" style="margin-top:4px;">
+                            ${e.pick3 ? "P3: "+e.pick3 : ""} ${e.pick3 && e.pick4 ? " | " : ""}
+                            ${e.pick4 ? "P4: "+e.pick4 : ""}
+                          </div>`;
+        const rm = document.createElement("button");
+        rm.className = "x";
+        rm.textContent = "✕";
+        rm.addEventListener("click", () => {
+          builtEntries.splice(idx,1);
+          renderEntries();
+        });
+        li.appendChild(left);
+        li.appendChild(rm);
+        entryListEl.appendChild(li);
+      });
+    }
+
+    btnAddEntry.addEventListener("click", () => {
+      if (!selectedState) return toast(statusStateEl, "Tap a state first", false);
+
+      const p3 = sP3El.value.trim();
+      const p4 = sP4El.value.trim();
+      const p3ok = p3 === "" || p3.length === 3;
+      const p4ok = p4 === "" || p4.length === 4;
+      if (!p3 && !p4) return toast(statusStateEl, "Enter P3 or P4", false);
+      if (!p3ok || !p4ok) return toast(statusStateEl, "P3 must be 3 digits, P4 must be 4", false);
+
+      builtEntries.push({
+        state: selectedState,
+        type: selectedType,
+        pick3: p3,
+        pick4: p4
+      });
+      sP3El.value = ""; sP4El.value = "";
+      toast(statusStateEl, "Entry added", true);
+      renderEntries();
+    });
+
+    btnClearEntries.addEventListener("click", () => {
+      builtEntries.splice(0, builtEntries.length);
+      renderEntries();
+      toast(statusStateEl, "Cleared", true);
+    });
+
+    btnSendEntries.addEventListener("click", async () => {
+      const pin = onlyDigits(pinEl.value);
+      if (!pin) return toast(statusStateEl, "Enter PIN", false);
+      if (!builtEntries.length) return toast(statusStateEl, "No entries to send", false);
+
+      statusStateEl.textContent = "Sending…";
+      const resp = await postJSON("/api/remote", {
+        pin,
+        stateEntries: builtEntries
+      });
+      if (resp?.ok) {
+        toast(statusStateEl, "Sent ✅", true);
+        builtEntries.splice(0, builtEntries.length);
+        renderEntries();
+      } else {
+        toast(statusStateEl, resp?.error || "Failed", false);
+      }
+    });
+
+    // Two-tap confirm for Reset All
+    let confirmTimer = null;
+    btnReset.addEventListener("click", async () => {
+      const pin = onlyDigits(pinEl.value);
+      if (!pin) return toast(statusResetEl, "Enter PIN", false);
+
+      if (!btnReset.dataset.armed) {
+        btnReset.dataset.armed = "1";
+        btnReset.textContent = "Tap again to confirm";
+        if (confirmTimer) clearTimeout(confirmTimer);
+        confirmTimer = setTimeout(() => {
+          btnReset.dataset.armed = "";
+          btnReset.textContent = "Reset All";
+        }, 4000);
+        return;
+      }
+
+      // confirmed
+      btnReset.dataset.armed = "";
+      btnReset.textContent = "Reset All";
+      statusResetEl.textContent = "Resetting…";
+      const resp = await postJSON("/api/remote", { pin, action: "resetAll" });
+      if (resp?.ok) {
+        toast(statusResetEl, "All cleared ✅", true);
+      } else {
+        toast(statusResetEl, resp?.error || "Failed", false);
+      }
+    });
+  </script>
+</body>
+</html>
