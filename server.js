@@ -4,11 +4,21 @@ const next = require("next");
 const express = require("express");
 const { Server } = require("socket.io");
 
+// web-scraper helper
+const scrapeFriend = require("./lib/scrapeFriend");
+
 const dev = process.env.NODE_ENV !== "production";
 const app = next({ dev });
 const handle = app.getRequestHandler();
 
 const CONTROLLER_PIN = process.env.CONTROLLER_PIN || "2468";
+
+// ---- scraper env (PRINT THEM SO WE KNOW WHAT THE PROCESS SEES) ----
+const FRIEND_WS_URL = process.env.FRIEND_WS_URL || "";
+const FRIEND_SAFE = process.env.FRIEND_SAFE === "1"; // "1" means safe mode on
+
+console.log("[env] FRIEND_WS_URL =", FRIEND_WS_URL || "(empty)");
+console.log("[env] FRIEND_SAFE   =", process.env.FRIEND_SAFE ?? "(unset)");
 
 // In-memory shared state
 let state = {
@@ -173,6 +183,20 @@ app.prepare().then(() => {
     }
   });
 
+  // -------------------------------------------------------
+  // DEV: raw scrape preview (no state change, just returns HTML)
+  // -------------------------------------------------------
+  exp.get("/api/dev/scrape-friend/raw", async (req, res) => {
+    try {
+      const html = await scrapeFriend.fetchRaw();
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.status(200).send(html.slice(0, 20000)); // first 20k chars
+    } catch (err) {
+      console.error("scrape-friend/raw error:", err?.message || err);
+      res.status(500).json({ ok: false, error: err?.message || "scrape failed" });
+    }
+  });
+
   // Hand off everything else to Next.js
   // Express 5 + path-to-regexp v6: use a RegExp for "match everything"
   exp.all(/.*/, (req, res) => handle(req, res));
@@ -180,5 +204,13 @@ app.prepare().then(() => {
   const PORT = process.env.PORT || 3000;
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`✔ Server running at http://0.0.0.0:${PORT}`);
+
+    // ---- start scraper ONCE with the env we printed above ----
+    // If FRIEND_WS_URL is empty, start in safe mode (no connect) so we still get helpful logs.
+    const opts = {
+      wsUrl: FRIEND_WS_URL,
+      safe: FRIEND_WS_URL ? FRIEND_SAFE : true,
+    };
+    scrapeFriend.start(opts);
   });
 });
