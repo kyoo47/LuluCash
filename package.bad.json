@@ -3,9 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "InstantCash lottery display + remote + OCR pipeline",
-  "engines": {
-    "node": ">=18.17"
-  },
+  "engines": { "node": ">=18.17" },
   "scripts": {
     "dev": "node server.js",
     "start": "node server.js",
@@ -25,9 +23,5 @@
     "react-dom": "18.3.1",
     "sharp": "0.33.4",
     "socket.io": "4.7.5"
-  },
-  "devDependencies": {
-    "@types/react": "19.1.13",
-    "typescript": "5.9.2"
   }
 }

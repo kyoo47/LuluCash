@@ -1,0 +1,53 @@
+﻿<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>Capture Grid</title>
+<style>
+  html,body{margin:0;height:100%;background:#111;color:#eee;font-family:system-ui,Segoe UI,Arial}
+  .wrap{display:flex;gap:16px;padding:16px}
+  .panel{flex:1;min-width:0}
+  .imgbox{position:relative;max-width:100%;border:1px solid #444;background:#000}
+  .imgbox img{display:block;max-width:100%;height:auto}
+  .grid{position:absolute;inset:0;pointer-events:none;display:grid;grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(10,1fr)}
+  .grid div{border:1px dashed rgba(255,255,255,.25)}
+  .legend{font-size:14px;line-height:1.4}
+  code{background:#222;padding:2px 6px;border-radius:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <h2>Capture with 10×10 grid</h2>
+    <div class="imgbox" id="box">
+      <img id="cap" src="/capture.png?ts=' + Date.now() + '" alt="capture.png"/>
+      <div class="grid" id="g"></div>
+    </div>
+    <p class="legend">
+      Tell me the grid ranges where each number sits at the “numbers-only” moment.<br/>
+      Example format: <code>P2: x 62–72%, y 18–28%</code> (or say “column 6–7, row 2–3”).
+    </p>
+  </div>
+  <div class="panel">
+    <h3>Helper</h3>
+    <div class="legend">
+      The grid splits width/height into 10 equal parts:
+      <ul>
+        <li>Column 0 = 0–10%, Column 1 = 10–20%, … Column 9 = 90–100%</li>
+        <li>Row 0 = 0–10%, Row 1 = 10–20%, … Row 9 = 90–100%</li>
+      </ul>
+      For each of P2/P3/P4/P5, just give me:
+      <ul>
+        <li>X range (columns)</li>
+        <li>Y range (rows)</li>
+      </ul>
+      I’ll convert that into exact crop percentages next.
+    </div>
+  </div>
+</div>
+<script>
+  const g = document.getElementById('g');
+  for (let i=0;i<100;i++){ const d=document.createElement('div'); g.appendChild(d); }
+</script>
+</body>
+</html>
