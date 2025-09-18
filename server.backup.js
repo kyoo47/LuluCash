@@ -1,184 +1,147 @@
-// server.js
-const http = require("http");
+﻿const http = require("http");
+const path = require("path");
+const fs = require("fs");
 const next = require("next");
 const express = require("express");
-const { Server } = require("socket.io");
+
+// -------- Google Vision (safe init) --------
+let visionClient = null;
+let visionInitError = null;
+try {
+  const { ImageAnnotatorClient } = require("@google-cloud/vision");
+  visionClient = new ImageAnnotatorClient();
+  console.log("[vision] client ready");
+} catch (e) {
+  visionInitError = e?.message || String(e);
+  console.warn("[vision] init failed:", visionInitError);
+}
 
 const dev = process.env.NODE_ENV !== "production";
 const app = next({ dev });
 const handle = app.getRequestHandler();
 
-const CONTROLLER_PIN = process.env.CONTROLLER_PIN || "2468";
-
-// In-memory shared state
-let state = {
-  numberBoxes: [],
-  stateResults: [],
-  lastUpdated: null,
-};
-
-// ---------- helpers ----------
-function nyNow() {
-  const now = new Date();
-  return new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
-}
-function nextDrawTimeNY() {
-  const nowNY = nyNow();
-  const drawTimes = [];
-  for (let h = 10; h < 22; h++) {
-    drawTimes.push(new Date(nowNY.getFullYear(), nowNY.getMonth(), nowNY.getDate(), h, 0, 0, 0));
-    drawTimes.push(new Date(nowNY.getFullYear(), nowNY.getMonth(), nowNY.getDate(), h, 30, 0, 0));
-  }
-  for (const t of drawTimes) if (t > nowNY) return t;
-  const tomorrow = new Date(nowNY);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), 10, 0, 0, 0);
-}
-function toDigitsArray(str) {
-  if (!str || typeof str !== "string") return [];
-  return str
-    .trim()
-    .split("")
-    .map((c) => parseInt(c, 10))
-    .filter((n) => !Number.isNaN(n) && n >= 0 && n <= 9);
-}
-function sameNYDate(d1, d2) {
-  const a = new Date(d1);
-  const b = new Date(d2);
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
-
 app.prepare().then(() => {
   const exp = express();
   exp.use(express.json());
 
-  // Create HTTP server from Express so Socket.IO and Next share it
-  const server = http.createServer(exp);
-  const io = new Server(server, { cors: { origin: "*" } });
+  // -------- Health & OCR diagnostics --------
+  exp.get("/health", (_req, res) => {
+    res.type("text/plain").send("OK");
+  });
 
-  io.on("connection", (socket) => {
-    // Send current state immediately
-    socket.emit("state", state);
+  exp.get("/api/ocr/ping", (_req, res) => {
+    res.json({ ok: true, pong: true, time: new Date().toISOString() });
+  });
 
-    // Reset via socket (PIN protected)
-    socket.on("resetAll", ({ pin }, ack) => {
-      if (pin !== CONTROLLER_PIN) return ack?.({ ok: false, error: "Invalid PIN" });
-      state = { numberBoxes: [], stateResults: [], lastUpdated: Date.now() };
-      io.emit("state", state);
-      ack?.({ ok: true });
+  exp.get("/api/ocr/status", (_req, res) => {
+    const credsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || "";
+    const keyExists = credsPath ? fs.existsSync(credsPath) : false;
+    res.json({
+      ok: true,
+      env: { GOOGLE_APPLICATION_CREDENTIALS: credsPath },
+      keyExists,
+      visionOk: !!visionClient,
+      visionError: visionInitError || null,
+      now: new Date().toISOString(),
     });
   });
 
-  // -----------------------------
-  // Remote controller HTTP API
-  // -----------------------------
-  // POST /api/remote
-  exp.post("/api/remote", (req, res) => {
+  // -------- OCR endpoint: GET /api/ocr?img=/filename.png --------
+  exp.get("/api/ocr", async (req, res) => {
     try {
-      const {
-        pin,
-        selectedTime,
-        pick2,
-        pick3,
-        pick4,
-        pick5,
-        stateEntries,
-        action,
-      } = req.body || {};
-
-      if (!pin || pin !== CONTROLLER_PIN) {
-        return res.status(401).json({ ok: false, error: "Invalid PIN" });
+      if (!visionClient) {
+        return res.status(500).json({ ok: false, error: "Vision client not initialized" });
+      }
+      const img = (req.query.img || "").toString().trim();
+      if (!img) {
+        return res.status(400).json({ ok: false, error: "Missing ?img=/path" });
       }
 
-      // Handle reset if requested
-      if (action === "resetAll") {
-        state = { numberBoxes: [], stateResults: [], lastUpdated: Date.now() };
-        io.emit("state", state);
-        return res.json({ ok: true, reset: true });
+      // Resolve to /public path if a leading slash is provided
+      let localPath;
+      if (img.startsWith("/")) {
+        localPath = path.join(process.cwd(), "public", img.replace(/^\//, ""));
+      } else {
+        localPath = path.isAbsolute(img) ? img : path.join(process.cwd(), img);
       }
 
-      // Add today's draw numbers if provided
-      const p2 = toDigitsArray(pick2);
-      const p3 = toDigitsArray(pick3);
-      const p4 = toDigitsArray(pick4);
-      const p5 = toDigitsArray(pick5);
-      const hasAnyPick = p2.length || p3.length || p4.length || p5.length;
-
-      if (hasAnyPick) {
-        if (!selectedTime || typeof selectedTime !== "string" || !selectedTime.trim()) {
-          return res.status(400).json({ ok: false, error: "Missing selectedTime" });
-        }
-
-        const drawTime = nextDrawTimeNY();
-        const chosen = selectedTime.trim();
-
-        // Prevent duplicate draw time for the same NY day
-        const duplicate = state.numberBoxes.some((b) => {
-          return b.time === chosen && sameNYDate(new Date(b.drawTime), drawTime);
-        });
-        if (duplicate) {
-          return res
-            .status(409)
-            .json({ ok: false, error: `Draw time "${chosen}" already added for today` });
-        }
-
-        const newBox = {
-          id: Date.now().toString(),
-          date: drawTime.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-          time: chosen,
-          drawTime,
-          pick2: p2,
-          pick3: p3,
-          pick4: p4,
-          pick5: p5,
-        };
-        state.numberBoxes = [newBox, ...state.numberBoxes];
+      if (!fs.existsSync(localPath)) {
+        return res.status(404).json({ ok: false, error: `File not found: ${path.basename(localPath)}` });
       }
 
-      // Add optional state lottery entries
-      if (Array.isArray(stateEntries) && stateEntries.length) {
-        const now = nyNow();
-        const yesterday = new Date(now);
-        yesterday.setDate(yesterday.getDate() - 1);
-
-        for (const entry of stateEntries) {
-          const sName = entry?.state;
-          const t = entry?.type === "yesterday" ? "yesterday" : "today";
-          const p3s = toDigitsArray(entry?.pick3);
-          const p4s = toDigitsArray(entry?.pick4);
-          if (!sName) continue;
-          if (p3s.length === 3 || p4s.length === 4) {
-            state.stateResults.push({
-              id: `${t}-${sName}-${Date.now()}`,
-              state: sName,
-              pick3: p3s,
-              pick4: p4s,
-              type: t,
-              timestamp: t === "yesterday" ? yesterday : now,
-            });
-          }
-        }
-      }
-
-      state.lastUpdated = Date.now();
-      io.emit("state", state);
-      return res.json({ ok: true });
+      // Use filename directly with Vision
+      const [result] = await visionClient.textDetection(localPath);
+      const textAnn = result.textAnnotations && result.textAnnotations[0];
+      const fullText = textAnn ? textAnn.description : "";
+      const lines = fullText ? fullText.split(/\r?\n/).filter(Boolean) : [];
+      return res.json({ ok: true, text: fullText, lines });
     } catch (err) {
-      console.error("Error in /api/remote:", err);
-      return res.status(500).json({ ok: false, error: "Server error" });
+      console.error("OCR error:", err);
+      return res.status(500).json({ ok: false, error: "OCR failed" });
     }
   });
 
-  // Hand off everything else to Next.js
-  // Express 5 + path-to-regexp v6: use a RegExp for "match everything"
+  // -------- Hand off everything else to Next --------
   exp.all(/.*/, (req, res) => handle(req, res));
 
+  const server = http.createServer(exp);
   const PORT = process.env.PORT || 3000;
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`✔ Server running at http://0.0.0.0:${PORT}`);
   });
 });
+/* === [results-api] minimal endpoints appended === */
+try {
+  const fs = require("fs");
+  const path = require("path");
+  const RESULTS_PATH = path.join(process.cwd(), "data", "results.json");
+  if (!fs.existsSync(path.dirname(RESULTS_PATH))) fs.mkdirSync(path.dirname(RESULTS_PATH), { recursive: true });
+
+  // Try to pick the express instance used for other routes
+  const pickApp = () => {
+    if (typeof server !== "undefined" && server.get) return server;
+    if (typeof expressApp !== "undefined" && expressApp.get) return expressApp;
+    if (typeof app !== "undefined" && app.get && typeof app.render !== "function") return app; // avoid Next instance
+    return null;
+  };
+  const X = pickApp();
+
+  if (X) {
+    X.get("/api/results/latest", (req, res) => {
+      try {
+        if (!fs.existsSync(RESULTS_PATH)) return res.json({ ok: true, at: null, P2: null, P3: null, P4: null, P5: null });
+        const raw = fs.readFileSync(RESULTS_PATH, "utf8") || "{}";
+        const data = JSON.parse(raw);
+        return res.json(Object.assign({ ok: true }, data));
+      } catch (e) {
+        return res.status(500).json({ ok: false, error: String(e) });
+      }
+    });
+
+    X.post("/api/results/ingest", require("express").json(), (req, res) => {
+      try {
+        const b = req.body || {};
+        const payload = {
+          ok: true,
+          at: new Date().toISOString(),
+          P2: b.P2 ?? null,
+          P3: b.P3 ?? null,
+          P4: b.P4 ?? null,
+          P5: b.P5 ?? null,
+          source: b.source || "ocr"
+        };
+        fs.writeFileSync(RESULTS_PATH, JSON.stringify(payload, null, 2), "utf8");
+        return res.json(payload);
+      } catch (e) {
+        return res.status(500).json({ ok: false, error: String(e) });
+      }
+    });
+
+    console.log("[results] endpoints ready");
+  } else {
+    console.warn("[results] could not attach endpoints (no express app var found)");
+  }
+} catch (e) {
+  console.warn("[results] init error:", e && e.message ? e.message : e);
+}
+/* === [/results-api] end === */

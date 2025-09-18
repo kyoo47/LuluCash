@@ -158,25 +158,3 @@ app.get("/api/ocr/boxes", async (req, res) => {
     return res.status(500).json({ ok: false, error: String(e) });
   }
 });
-/** Return token-level OCR with bounding boxes for better ordering */
-app.get("/api/ocr/boxes", async (req, res) => {
-  try {
-    const img = req.query.img;
-    if (!img) return res.status(400).json({ ok: false, error: "missing ?img" });
-
-    const abs = path.join(process.cwd(), "public", img.replace(/^\//, ""));
-    if (!fs.existsSync(abs)) return res.status(404).json({ ok: false, error: "file not found" });
-    if (!visionClient) return res.status(500).json({ ok: false, error: "vision not ready" });
-
-    const [result] = await visionClient.textDetection(abs);
-    const anns = result?.textAnnotations || [];
-    // anns[0] is the full text; the rest are tokens/words
-    const items = anns.slice(1).map(t => ({
-      text: t.description || "",
-      box: (t.boundingPoly?.vertices || []).map(v => ({ x: v?.x || 0, y: v?.y || 0 }))
-    }));
-    return res.json({ ok: true, items });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e) });
-  }
-});
