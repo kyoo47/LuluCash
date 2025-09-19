@@ -4,7 +4,6 @@ import type React from "react"
 import { useState, useEffect, useRef, useCallback, memo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Menu } from "lucide-react"
 import "./lottery.css"
 import { getSocket } from "@/lib/socket";
@@ -56,7 +55,7 @@ const StateTicker = memo(function StateTicker({ results }: { results: StateResul
       return
     }
 
-    // If content doesn’t overflow, don’t animate.
+    // If content doesn't overflow, don't animate.
     const needsScroll = track.scrollWidth > viewport.clientWidth + 4
     if (!needsScroll) {
       track.style.transform = "translateX(0px)"
@@ -260,17 +259,70 @@ export default function InstantCashUI() {
     const i = setInterval(updateCountdown, 1000)
     return () => clearInterval(i)
   }, [updateCountdown])
+  
+  // Manage focus and dropdown behavior
+  useEffect(() => {
+    if (!isDropdownOpen) return
+    
+    // Handle outside clicks to close dropdown
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (!target.closest('.custom-dropdown') && !target.closest('.menu-button')) {
+        setIsDropdownOpen(false)
+      }
+    }
+    
+    // Handle keyboard navigation in the dropdown - ONLY for Escape key
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Only close dropdown on Escape key
+      if (event.key === 'Escape') {
+        setIsDropdownOpen(false)
+      }
+      // No Enter key handling here - let individual input handlers manage that
+    }
+    
+    // Focus the first input when dropdown opens
+    const pinInput = document.getElementById('controller-pin')
+    if (pinInput) {
+      setTimeout(() => {
+        pinInput.focus()
+      }, 50)
+    }
+    
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown) // Removed capture phase
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isDropdownOpen])
 
-  // Socket state
+  // Socket state - FIXED VERSION
   useEffect(() => {
     socketRef.current = getSocket()
+    
     const onState = (st: any) => {
+      console.log("Received state update:", st)
       setNumberBoxes(st.numberBoxes || [])
       setStateResults(st.stateResults || [])
     }
+    
+    const onHello = (data: any) => {
+      console.log("Socket connected:", data)
+    }
+    
     socketRef.current.on("state", onState)
+    socketRef.current.on("hello", onHello)
+    
+    // Request initial state when connecting
+    socketRef.current.emit("getState")
+    
     return () => {
-      socketRef.current?.off("state", onState)
+      if (socketRef.current) {
+        socketRef.current.off("state", onState)
+        socketRef.current.off("hello", onHello)
+      }
     }
   }, [])
 
@@ -405,13 +457,31 @@ export default function InstantCashUI() {
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent, currentField: string) => {
     if (e.key === "Enter") {
-      e.preventDefault()
-      switch (currentField) {
-        case "pick2": pick3Ref.current?.focus(); break
-        case "pick3": pick4Ref.current?.focus(); break
-        case "pick4": pick5Ref.current?.focus(); break
-        case "pick5": handleAddNumbers(); break
-      }
+      e.preventDefault();
+      e.stopPropagation(); // Stop event propagation to prevent dropdown closing
+      console.log(`Enter pressed in ${currentField}, focusing next field`);
+      
+      // Delay focus to ensure it works properly in the dropdown
+      setTimeout(() => {
+        switch (currentField) {
+          case "pick2": 
+            console.log("Focusing pick3");
+            pick3Ref.current?.focus(); 
+            break;
+          case "pick3": 
+            console.log("Focusing pick4");
+            pick4Ref.current?.focus(); 
+            break;
+          case "pick4": 
+            console.log("Focusing pick5");
+            pick5Ref.current?.focus(); 
+            break;
+          case "pick5": 
+            console.log("Submitting form");
+            handleAddNumbers(); 
+            break;
+        }
+      }, 10);
     }
   }, [handleAddNumbers])
 
@@ -423,14 +493,28 @@ export default function InstantCashUI() {
       setShowResetConfirm(false)
       return
     }
-    socketRef.current?.emit("resetAll", { pin }, (res: any) => {
-      if (res?.ok) {
-        setNumberBoxes([])
-        setStateResults([])
+    
+    // Send reset command to remote API
+    fetch('/api/remote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin, action: 'resetAll' })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.ok) {
+        console.log("Reset successful")
+        // The state will be updated via socket event
       } else {
-        alert(res?.error || "Reset failed")
+        console.error("Reset failed:", data.error)
+        alert(data.error || "Reset failed")
       }
     })
+    .catch(err => {
+      console.error("Reset error:", err)
+      alert("Network error during reset")
+    })
+    
     setShowResetConfirm(false)
   }, [pin])
 
@@ -516,22 +600,6 @@ export default function InstantCashUI() {
 
   return (
     <div className="lottery-container">
-      <div className="falling-clovers">
-        {Array.from({ length: 15 }, (_, i) => (
-          <div
-            key={i}
-            className="falling-clover"
-            style={{
-              left: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 10}s`,
-              animationDuration: `${8 + Math.random() * 4}s`,
-            }}
-          >
-            🍀
-          </div>
-        ))}
-      </div>
-
       <header className="lottery-header">
         <div className="logo-section">
           <img
@@ -555,62 +623,166 @@ export default function InstantCashUI() {
         <div className="header-right">
           <div className="website-animated-text">VISIT-instantcash.bet to watch live result from your phone</div>
           <div className="current-time">{currentDateTime}</div>
-          <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button className="menu-button" onClick={() => setIsDropdownOpen(!isDropdownOpen)} type="button" aria-label="Open menu">
-                <Menu className="w-5 h-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="dropdown-content-wide" align="end">
-              <div className="all-inputs-container">
-                <h3 className="dropdown-title">Enter Today's Numbers</h3>
+          <div className="custom-dropdown-container">
+            <Button 
+              className="menu-button" 
+              type="button" 
+              aria-label="Open menu" 
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
+            
+            {isDropdownOpen && (
+              <div className="custom-dropdown dropdown-content-wide">
+                <div className="all-inputs-container">
+                  <h3 className="dropdown-title">Enter Today's Numbers</h3>
 
-                <div className="input-group">
-                  <label className="input-label">Controller PIN</label>
-                  <Input inputMode="numeric" pattern="[0-9]*" placeholder="2468" value={pin} onChange={(e) => setPin(e.target.value)} className="draw-input" />
-                </div>
+                  <div className="input-group">
+                    <label className="input-label">Controller PIN</label>
+                    <Input 
+                      inputMode="numeric" 
+                      pattern="[0-9]*" 
+                      placeholder="2468" 
+                      value={pin} 
+                      onChange={(e) => setPin(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log("Moving focus from PIN to time selection");
+                          const timeSelect = document.querySelector('.time-select');
+                          if (timeSelect) {
+                            (timeSelect as HTMLElement).focus();
+                          } else {
+                            pick2Ref.current?.focus();
+                          }
+                        }
+                      }} 
+                      className="draw-input" 
+                      id="controller-pin"
+                    />
+                  </div>
 
-                <div className="input-group">
-                  <label className="input-label">Select Draw Time</label>
-                  <select value={selectedTime} onChange={(e) => setSelectedTime(e.target.value)} className="time-select">
-                    <option value="">Choose a time...</option>
-                    {getAvailableTimeOptions().map((time) => (
-                      <option key={time} value={time}>{time}</option>
-                    ))}
-                  </select>
-                </div>
+                  <div className="input-group">
+                    <label className="input-label">Select Draw Time</label>
+                    <select 
+                      value={selectedTime} 
+                      onChange={(e) => setSelectedTime(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log("Moving focus from time selection to Pick 2");
+                          pick2Ref.current?.focus();
+                        }
+                      }}
+                      className="time-select"
+                      id="draw-time-select"
+                    >
+                      <option value="">Choose a time...</option>
+                      {getAvailableTimeOptions().map((time) => (
+                        <option key={time} value={time}>{time}</option>
+                      ))}
+                    </select>
+                  </div>
 
-                <div className="input-group">
-                  <label className="input-label">Pick 2 (Two digits)</label>
-                  <Input ref={pick2Ref} inputMode="numeric" pattern="[0-9]*" placeholder="e.g., 12" value={pick2Input} onChange={(e) => setPick2Input(e.target.value)} onKeyDown={(e) => handleKeyDown(e, "pick2")} className="draw-input" />
-                </div>
+                  <div className="input-group">
+                    <label className="input-label">Pick 2 (Two digits)</label>
+                    <Input 
+                      ref={pick2Ref} 
+                      inputMode="numeric" 
+                      pattern="[0-9]*" 
+                      placeholder="e.g., 12" 
+                      value={pick2Input} 
+                      onChange={(e) => setPick2Input(e.target.value)} 
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log("Directly focusing pick3 from pick2");
+                          pick3Ref.current?.focus();
+                        }
+                      }} 
+                      className="draw-input" 
+                    />
+                  </div>
 
-                <div className="input-group">
-                  <label className="input-label">Pick 3 (Three digits)</label>
-                  <Input ref={pick3Ref} inputMode="numeric" pattern="[0-9]*" placeholder="e.g., 123" value={pick3Input} onChange={(e) => setPick3Input(e.target.value)} onKeyDown={(e) => handleKeyDown(e, "pick3")} className="draw-input" />
-                </div>
+                  <div className="input-group">
+                    <label className="input-label">Pick 3 (Three digits)</label>
+                    <Input 
+                      ref={pick3Ref} 
+                      inputMode="numeric" 
+                      pattern="[0-9]*" 
+                      placeholder="e.g., 123" 
+                      value={pick3Input} 
+                      onChange={(e) => setPick3Input(e.target.value)} 
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log("Directly focusing pick4 from pick3");
+                          pick4Ref.current?.focus();
+                        }
+                      }} 
+                      className="draw-input" 
+                    />
+                  </div>
 
-                <div className="input-group">
-                  <label className="input-label">Pick 4 (Four digits)</label>
-                  <Input ref={pick4Ref} inputMode="numeric" pattern="[0-9]*" placeholder="e.g., 1234" value={pick4Input} onChange={(e) => setPick4Input(e.target.value)} onKeyDown={(e) => handleKeyDown(e, "pick4")} className="draw-input" />
-                </div>
+                  <div className="input-group">
+                    <label className="input-label">Pick 4 (Four digits)</label>
+                    <Input 
+                      ref={pick4Ref} 
+                      inputMode="numeric" 
+                      pattern="[0-9]*" 
+                      placeholder="e.g., 1234" 
+                      value={pick4Input} 
+                      onChange={(e) => setPick4Input(e.target.value)} 
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log("Directly focusing pick5 from pick4");
+                          pick5Ref.current?.focus();
+                        }
+                      }} 
+                      className="draw-input" 
+                    />
+                  </div>
 
-                <div className="input-group">
-                  <label className="input-label">Pick 5 (Five digits)</label>
-                  <Input ref={pick5Ref} inputMode="numeric" pattern="[0-9]*" placeholder="e.g., 12345" value={pick5Input} onChange={(e) => setPick5Input(e.target.value)} onKeyDown={(e) => handleKeyDown(e, "pick5")} className="draw-input" />
-                </div>
+                  <div className="input-group">
+                    <label className="input-label">Pick 5 (Five digits)</label>
+                    <Input 
+                      ref={pick5Ref} 
+                      inputMode="numeric" 
+                      pattern="[0-9]*" 
+                      placeholder="e.g., 12345" 
+                      value={pick5Input} 
+                      onChange={(e) => setPick5Input(e.target.value)} 
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log("Submitting form from pick5");
+                          handleAddNumbers();
+                        }
+                      }} 
+                      className="draw-input" 
+                    />
+                  </div>
 
-                <div className="dropdown-buttons">
-                  <Button onClick={handleAddNumbers} className="submit-btn" type="button">Add to Today's Draws</Button>
-                  <Button onClick={() => { setShowTodayStatePopup(true); setIsDropdownOpen(false) }} className="today-state-btn" type="button">Add Today State Numbers</Button>
-                  <Button onClick={() => { setShowYesterdayStatePopup(true); setIsDropdownOpen(false) }} className="yesterday-state-btn" type="button">Add Yesterday State Numbers</Button>
-                  <Button onClick={() => { setShowYesterdayPopup(true); setIsDropdownOpen(false) }} className="yesterday-btn" type="button">ADD YESTERDAY NUMBERS</Button>
-                  <Button onClick={handleReset} variant="destructive" className="reset-btn" type="button">Reset All</Button>
-                  <Button onClick={() => { setPick2Input(""); setPick3Input(""); setPick4Input(""); setPick5Input(""); setSelectedTime(""); setIsDropdownOpen(false) }} variant="outline" className="cancel-btn" type="button">Cancel</Button>
+                  <div className="dropdown-buttons">
+                    <Button onClick={handleAddNumbers} className="submit-btn" type="button">Add to Today's Draws</Button>
+                    <Button onClick={() => { setShowTodayStatePopup(true); setIsDropdownOpen(false) }} className="today-state-btn" type="button">Add Today State Numbers</Button>
+                    <Button onClick={() => { setShowYesterdayStatePopup(true); setIsDropdownOpen(false) }} className="yesterday-state-btn" type="button">Add Yesterday State Numbers</Button>
+                    <Button onClick={() => { setShowYesterdayPopup(true); setIsDropdownOpen(false) }} className="yesterday-btn" type="button">ADD YESTERDAY NUMBERS</Button>
+                    <Button onClick={handleReset} variant="destructive" className="reset-btn" type="button">Reset All</Button>
+                    <Button onClick={() => { setPick2Input(""); setPick3Input(""); setPick4Input(""); setPick5Input(""); setSelectedTime(""); setIsDropdownOpen(false) }} variant="outline" className="cancel-btn" type="button">Cancel</Button>
+                  </div>
                 </div>
               </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            )}
+          </div>
         </div>
       </header>
 

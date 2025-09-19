@@ -113,6 +113,163 @@ app.post("/api/results/ingest", (req, res) => {
   }
 });
 
+// ----- Remote Control API -----
+// PIN for remote access (hardcoded for simplicity)
+const CONTROL_PIN = "2468"; // You can change this to your preferred PIN
+
+app.post("/api/remote", (req, res) => {
+  try {
+    const b = req.body || {};
+    
+    // Verify PIN
+    if (b.pin !== CONTROL_PIN) {
+      return res.status(403).json({ ok: false, error: "Invalid PIN" });
+    }
+    
+    // Handle Reset All action
+    if (b.action === "resetAll") {
+      // Clear all stored results
+      const resetPayload = {
+        at: new Date().toISOString(),
+        P2: null,
+        P3: null,
+        P4: null,
+        P5: null,
+        source: "remote-reset",
+      };
+      writeResults(resetPayload);
+      
+      // Update global state
+      globalState.numberBoxes = [];
+      globalState.stateResults = [];
+      
+      // Broadcast updates
+      io.emit("results:update", resetPayload);
+      io.emit("state", globalState);
+      io.emit("state:reset");
+      return res.json({ ok: true, message: "All data reset" });
+    }
+    
+    // Handle today's draws submission
+    if (b.selectedTime) {
+      const pick2 = b.pick2 || "";
+      const pick3 = b.pick3 || "";
+      const pick4 = b.pick4 || "";
+      const pick5 = b.pick5 || "";
+      
+      // Validate that at least one pick is provided
+      if (!pick2 && !pick3 && !pick4 && !pick5) {
+        return res.status(400).json({ ok: false, error: "No picks provided" });
+      }
+      
+      // Validate format of provided picks
+      if (pick2 && !/^\d{2}$/.test(pick2)) {
+        return res.status(400).json({ ok: false, error: "Pick 2 must be exactly 2 digits" });
+      }
+      if (pick3 && !/^\d{3}$/.test(pick3)) {
+        return res.status(400).json({ ok: false, error: "Pick 3 must be exactly 3 digits" });
+      }
+      if (pick4 && !/^\d{4}$/.test(pick4)) {
+        return res.status(400).json({ ok: false, error: "Pick 4 must be exactly 4 digits" });
+      }
+      if (pick5 && !/^\d{5}$/.test(pick5)) {
+        return res.status(400).json({ ok: false, error: "Pick 5 must be exactly 5 digits" });
+      }
+      
+      // Create a payload with the provided picks
+      const payload = {
+        at: new Date().toISOString(),
+        time: b.selectedTime,
+        P2: pick2 || null,
+        P3: pick3 || null,
+        P4: pick4 || null,
+        P5: pick5 || null,
+        source: "remote",
+      };
+      
+      // Only update results if we have all picks (to avoid overwriting existing)
+      if (pick2 && pick3 && pick4 && pick5) {
+        writeResults(payload);
+      }
+      
+      // Format for the numberBoxes array
+      const drawTime = new Date();
+      const numberBox = {
+        id: Date.now().toString(),
+        date: drawTime.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+        time: b.selectedTime,
+        drawTime: drawTime,
+        pick2: pick2 ? pick2.split("").map(n => parseInt(n)) : [],
+        pick3: pick3 ? pick3.split("").map(n => parseInt(n)) : [],
+        pick4: pick4 ? pick4.split("").map(n => parseInt(n)) : [],
+        pick5: pick5 ? pick5.split("").map(n => parseInt(n)) : []
+      };
+      
+      // Add to global state
+      globalState.numberBoxes = [numberBox, ...globalState.numberBoxes];
+      
+      // Emit events
+      io.emit("today:update", payload);
+      io.emit("state", globalState);
+      
+      return res.json({ ok: true, message: "Today's draw updated" });
+    }
+    
+    // Handle state entries
+    if (b.stateEntries && Array.isArray(b.stateEntries) && b.stateEntries.length > 0) {
+      // Validate entries
+      for (const entry of b.stateEntries) {
+        if (!entry.state) {
+          return res.status(400).json({ ok: false, error: "State name required for entries" });
+        }
+        
+        const p3 = entry.pick3 || "";
+        const p4 = entry.pick4 || "";
+        
+        if (!p3 && !p4) {
+          return res.status(400).json({ ok: false, error: "At least one of Pick 3 or Pick 4 required" });
+        }
+        
+        if (p3 && !/^\d{3}$/.test(p3)) {
+          return res.status(400).json({ ok: false, error: "State Pick 3 must be exactly 3 digits" });
+        }
+        
+        if (p4 && !/^\d{4}$/.test(p4)) {
+          return res.status(400).json({ ok: false, error: "State Pick 4 must be exactly 4 digits" });
+        }
+      }
+      
+      // Format state entries for the global state
+      const now = new Date();
+      const formattedEntries = b.stateEntries.map(entry => ({
+        id: `${entry.type || "today"}-${entry.state}-${Date.now()}`,
+        state: entry.state,
+        pick3: entry.pick3 ? entry.pick3.split("").map(n => parseInt(n)) : [],
+        pick4: entry.pick4 ? entry.pick4.split("").map(n => parseInt(n)) : [],
+        type: entry.type || "today",
+        timestamp: now
+      }));
+      
+      // Add to global state
+      globalState.stateResults = [...globalState.stateResults, ...formattedEntries];
+      
+      // Emit events
+      io.emit("state:update", {
+        entries: b.stateEntries,
+        at: new Date().toISOString(),
+        source: "remote"
+      });
+      io.emit("state", globalState);
+      
+      return res.json({ ok: true, message: "State entries updated" });
+    }
+    
+    return res.status(400).json({ ok: false, error: "Invalid request format" });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
 console.log("[results] endpoints ready");
 
 // ----- Hand off to Next for everything else -----
@@ -127,8 +284,47 @@ nextApp.prepare().then(() => {
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
+// Global state to store all lottery data
+const globalState = {
+  numberBoxes: [],
+  stateResults: []
+};
+
 io.on("connection", (socket) => {
+  console.log("Client connected:", socket.id);
+  
   socket.emit("hello", { t: Date.now() });
+  
+  // Send current state when client requests it
+  socket.on("getState", () => {
+    socket.emit("state", globalState);
+  });
+  
+  // Handle reset requests from main page
+  socket.on("resetAll", (data, callback) => {
+    try {
+      if (data.pin !== CONTROL_PIN) {
+        if (callback) callback({ ok: false, error: "Invalid PIN" });
+        return;
+      }
+      
+      // Clear all data
+      globalState.numberBoxes = [];
+      globalState.stateResults = [];
+      
+      // Broadcast to all clients
+      io.emit("state", globalState);
+      
+      if (callback) callback({ ok: true });
+    } catch (e) {
+      console.error("Reset error:", e);
+      if (callback) callback({ ok: false, error: "Reset failed" });
+    }
+  });
+  
+  socket.on("disconnect", () => {
+    console.log("Client disconnected:", socket.id);
+  });
 });
 
 // ----- Listen -----
