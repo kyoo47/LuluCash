@@ -24,7 +24,7 @@ const fetch = require("node-fetch");
 
   // (Optional) ping OCR to warm it up
   try {
-    const u = "http://127.0.0.1:3000/api/ocr?img=" + encodeURIComponent("/capture.png");
+    const u = "http://127.0.0.1:3001/api/ocr?img=" + encodeURIComponent("/capture.png");
     const r = await fetch(u); await r.text();
   } catch {}
 })();

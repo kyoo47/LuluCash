@@ -4,13 +4,13 @@ const nextConfig = {
     return [
       {
         source: "/api/:path*",
-        destination: "http://localhost:3000/api/:path*",
+        destination: "http://localhost:3001/api/:path*",
       },
     ];
   },
   // Allow LAN access in dev
   experimental: {
-    allowedDevOrigins: ["http://192.168.1.54:3000"],
+    allowedDevOrigins: ["http://192.168.1.54:3001"],
   },
 };
 

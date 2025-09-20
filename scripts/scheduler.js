@@ -49,8 +49,8 @@ async function runPipeline() {
     console.log('? Step 1: capture-and-post');
     await run('scripts/capture-and-post.js', DEBUG ? ['--debug'] : []);
 
-    console.log('? Step 2: crop-and-ocr');
-    await run('scripts/crop-and-ocr.js', DEBUG ? ['--debug'] : []);
+    console.log('? Step 2: tesseract-ocr (local OCR solution)');
+    await run('scripts/tesseract-ocr.js', DEBUG ? ['--debug'] : []);
 
     console.log(`? Pipeline OK (${new Date().toISOString()})`);
   } catch (e) {
@@ -67,11 +67,11 @@ cron.schedule('11 10-21 * * *', runPipeline, { timezone: TZ });
 cron.schedule('41 10-21 * * *', runPipeline, { timezone: TZ });
 
 console.log('Scheduler ready.');
-console.log('Will run at :11 and :41 from 10:00–21:59 America/New_York.');
+console.log('Will run at :11 and :41 from 10:00ï¿½21:59 America/New_York.');
 
 if (ARGV.has('--once') || ARGV.has('--now')) {
   console.log('Running one pipeline now (because of --once/--now)...');
   runPipeline().then(() => process.exit(0)).catch(() => process.exit(1));
 } else {
-  console.log('Waiting for the next scheduled time…');
+  console.log('Waiting for the next scheduled timeï¿½');
 }

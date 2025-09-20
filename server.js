@@ -82,6 +82,16 @@ app.get("/api/results/latest", (req, res) => {
 
 // strict ingest: only accept exactly 2/3/4/5 digits; otherwise 422 and DO NOT overwrite
 app.post("/api/results/ingest", (req, res) => {
+// Test endpoint to manually trigger Socket event
+app.post("/api/test-socket", (req, res) => {
+  const testData = {
+    P2: "12", P3: "345", P4: "6789", P5: "01234",
+    source: "test"
+  };
+  console.log("Emitting test results:update event");
+  io.emit("results:update", testData);
+  res.json({ ok: true, message: "Test event emitted" });
+});
   try {
     const b = req.body || {};
     const is2 = /^\d{2}$/.test(b.P2 || "");
@@ -328,7 +338,7 @@ io.on("connection", (socket) => {
 });
 
 // ----- Listen -----
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(` Server running at http://0.0.0.0:${PORT}`);
 });

@@ -312,8 +312,37 @@ export default function InstantCashUI() {
       console.log("Socket connected:", data)
     }
     
+    const onResultsUpdate = (results: any) => {
+      console.log("Received results update:", results)
+      
+      // Create a new number box from the results
+      const now = new Date()
+      const drawTime = now
+      const displayTime = now.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true
+      })
+      
+      // Format the results into a number box
+      const newBox: NumberBox = {
+        id: Date.now().toString(),
+        date: now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+        time: displayTime,
+        drawTime,
+        pick2: results.P2 ? results.P2.split("").map((n: string) => parseInt(n)) : [],
+        pick3: results.P3 ? results.P3.split("").map((n: string) => parseInt(n)) : [],
+        pick4: results.P4 ? results.P4.split("").map((n: string) => parseInt(n)) : [],
+        pick5: results.P5 ? results.P5.split("").map((n: string) => parseInt(n)) : []
+      }
+      
+      // Add the new box to the state
+      setNumberBoxes(prev => [newBox, ...prev])
+    }
+    
     socketRef.current.on("state", onState)
     socketRef.current.on("hello", onHello)
+    socketRef.current.on("results:update", onResultsUpdate)
     
     // Request initial state when connecting
     socketRef.current.emit("getState")
@@ -322,6 +351,7 @@ export default function InstantCashUI() {
       if (socketRef.current) {
         socketRef.current.off("state", onState)
         socketRef.current.off("hello", onHello)
+        socketRef.current.off("results:update", onResultsUpdate)
       }
     }
   }, [])

@@ -24,7 +24,7 @@ const RECTS_PCT = {
 };
 
 async function ocr(rel){
-  const url = "http://127.0.0.1:3000/api/ocr?img=" + encodeURIComponent(rel);
+  const url = "http://127.0.0.1:3001/api/ocr?img=" + encodeURIComponent(rel);
   const r = await fetch(url);
   try { const j = await r.json(); return j.ok ? (j.text||"") : ""; }
   catch { return ""; }
@@ -127,7 +127,7 @@ async function main(){
   const ok = /^\d{2}$/.test(P2||"") && /^\d{3}$/.test(P3||"") && /^\d{4}$/.test(P4||"") && /^\d{5}$/.test(P5||"");
   if (!ok){ console.error("✖ Not publishing — open /debug-crops/*.png and /debug-crops/slices/*.png"); process.exit(2); }
 
-  const res = await fetch("http://127.0.0.1:3000/api/results/ingest", {
+  const res = await fetch("http://127.0.0.1:3001/api/results/ingest", {
     method:"POST", headers:{ "Content-Type":"application/json" },
     body: JSON.stringify({ source:"crop-ocr-slices", P2,P3,P4,P5 })
   });

@@ -7,7 +7,7 @@ const puppeteer = require("puppeteer");
 // Where to capture from (your friend’s page)
 const TARGET_URL = process.env.CAPTURE_URL || "http://instantcash.gaminglts.com:82/";
 // Where our OCR API lives
-const OCR_URL_BASE = process.env.OCR_BASE || "http://localhost:3000";
+const OCR_URL_BASE = process.env.OCR_BASE || "http://localhost:3001";
 
 function httpGetJSON(url) {
   return new Promise((resolve, reject) => {

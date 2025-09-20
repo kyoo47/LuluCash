@@ -16,17 +16,19 @@ const PUB = (...p) => path.join(ROOT, "public", ...p);
 const SRC = PUB("capture.png");
 
 const RECTS_PX_1280x720 = {
-  P2: { left: 107, top: 286, width: 102, height: 54 },
-  P3: { left: 94,  top: 325, width: 160, height: 51 },
-  P4: { left: 94,  top: 363, width: 211, height: 54 },
-  P5: { left: 94,  top: 424, width: 262, height: 66 },
+  // Target the top-left card (Sep 18, 2025, 01:00 PM)
+  P2: { left: 130, top: 300, width: 80, height: 35 },   // The two PICK 2 circles
+  P3: { left: 130, top: 340, width: 120, height: 35 },  // The three PICK 3 circles  
+  P4: { left: 130, top: 380, width: 160, height: 35 },  // The four PICK 4 circles
+  P5: { left: 130, top: 420, width: 160, height: 70 },  // PICK 5 circles (includes both rows)
 };
 
+// Also update the percentage coordinates to match:
 const RECTS_PCT = {
-  P2: [0.084, 0.397, 0.080, 0.075],
-  P3: [0.073, 0.451, 0.125, 0.071],
-  P4: [0.073, 0.504, 0.165, 0.075],
-  P5: [0.073, 0.589, 0.205, 0.092],
+  P2: [0.102, 0.417, 0.063, 0.049],  // left, top, width, height as percentages
+  P3: [0.102, 0.472, 0.094, 0.049],
+  P4: [0.102, 0.528, 0.125, 0.049], 
+  P5: [0.102, 0.583, 0.125, 0.097],  // Taller to capture both rows
 };
 
 function pctToPx(W,H,[x,y,w,h]){
@@ -38,13 +40,9 @@ function pctToPx(W,H,[x,y,w,h]){
 }
 
 async function preprocExtract(src, rect, outAbs) {
-  // Preprocess so digits pop: grayscale→normalize→threshold→slight blur
+  // Simple extract without heavy processing
   await sharp(src)
     .extract(rect)
-    .grayscale()
-    .normalize()
-    .threshold(160)     // binarize; tweakable
-    .blur(0.3)
     .png()
     .toFile(outAbs);
 }
@@ -128,10 +126,17 @@ function splitCols(gray, y0, y1, kWant) {
 }
 
 async function readBySlicesSmart(stem, N, relPng) {
+  console.log(`DEBUG: Starting ${stem} with ${N} digits, file: ${relPng}`);
+  
   // Load preprocessed crop and analyze rows/columns dynamically
   const cropBuf = fs.readFileSync(PUB(relPng));
+  console.log(`DEBUG: Loaded crop buffer, size: ${cropBuf.length} bytes`);
+  
   const gray = await toRawGray(cropBuf);
+  console.log(`DEBUG: Gray image: ${gray.w}x${gray.h}`);
+  
   const bands = horizBands(gray, Math.max(6, Math.floor(gray.h*0.18)));
+  console.log(`DEBUG: Found ${bands.length} bands:`, bands);
 
   // Decide row allocation
   let rowRects = [];
@@ -170,12 +175,20 @@ async function readBySlicesSmart(stem, N, relPng) {
     const outRel = `${outDirRel}/${stem}_${i+1}.png`;
     await sharp(PUB(relPng)).extract({ left:x, top:y, width:w, height:h }).png().toFile(PUB(outRel));
 
-    const url = "http://127.0.0.1:3000/api/ocr?img=" + encodeURIComponent(outRel);
-    const r = await fetch(url);
-    const j = await r.json().catch(async()=>({ ok:false, error:await r.text() }));
-    let d = (j.text||"").replace(/[^\d]/g,"").trim();
-    if (d.length===0) d="?";
-    digits.push(d[0] || "?");
+    const url = "http://127.0.0.1:3001/api/ocr?img=" + encodeURIComponent(outRel);
+    console.log(`Making OCR request to: ${url}`);
+    try {
+      const r = await fetch(url);
+      const j = await r.json().catch(async()=>({ ok:false, error:await r.text() }));
+      console.log(`OCR result for ${stem}_${i+1}:`, j);
+      let d = (j && j.text) ? j.text.replace(/[^\d]/g,"").trim() : "";
+      console.log(`Extracted digits: "${d}"`);
+      if (d.length===0) d="?";
+      digits.push(d[0] || "?");
+    } catch (error) {
+      console.error(`Error making OCR request: ${error.message}`);
+      digits.push("?");
+    }
   }
 
   console.log(`• ${stem} slices -> ${digits.join(" ")}`);
@@ -213,8 +226,8 @@ async function main(){
     outs[k]=rel;
   }
   console.log("• Crops written:", outs);
-  console.log("  Open crops:  http://127.0.0.1:3000/debug-crops/P2.png etc.");
-  console.log("  Open slices: http://127.0.0.1:3000/debug-crops/slices/P5_1.png etc.");
+  console.log("  Open crops:  http://127.0.0.1:3001/debug-crops/P2.png etc.");
+  console.log("  Open slices: http://127.0.0.1:3001/debug-crops/slices/P5_1.png etc.");
 
   const P2 = await readBySlicesSmart("P2",2,outs.P2);
   const P3 = await readBySlicesSmart("P3",3,outs.P3);
@@ -235,7 +248,7 @@ async function main(){
     process.exit(2);
   }
 
-  const res = await fetch("http://127.0.0.1:3000/api/results/ingest", {
+  const res = await fetch("http://127.0.0.1:3001/api/results/ingest", {
     method:"POST", headers:{ "Content-Type":"application/json" },
     body: JSON.stringify({ source:"crop-ocr-smart", P2,P3,P4,P5 })
   });
