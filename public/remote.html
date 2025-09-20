@@ -5,32 +5,189 @@
   <title>InstantCash Remote</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-    body { margin: 0; background: #0f172a; color: #e5e7eb; }
-    .wrap { max-width: 560px; margin: 24px auto; padding: 16px; }
-    .card { background: #111827; border: 1px solid #1f2937; border-radius: 14px; padding: 16px; }
-    h1 { margin: 0 0 12px; font-size: 22px; }
-    h2 { margin: 18px 0 8px; font-size: 16px; color:#cbd5e1; }
-    .row { display: grid; grid-template-columns: 160px 1fr; gap: 10px; align-items: center; margin: 10px 0; }
-    label { font-size: 14px; color: #cbd5e1; }
+    :root { 
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      --bg: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+      --card: #1e293b; --text: #e5e7eb; --muted: #94a3b8;
+      --border: #334155; --border-light: #475569; --accent: #22c55e; --danger: #ef4444;
+      --warning: #f59e0b; --blue: #3b82f6; --input-bg: #0f172a;
+    }
+    
+    body { 
+      margin: 0; background: var(--bg); color: var(--text); 
+      min-height: 100vh; padding: 20px 0;
+    }
+    
+    .wrap { 
+      max-width: 600px; margin: 0 auto; padding: 20px;
+    }
+    
+    .card { 
+      background: var(--card); border: 1px solid var(--border); border-radius: 16px; 
+      padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,.4);
+      backdrop-filter: blur(10px);
+    }
+    
+    h1 { 
+      margin: 0 0 20px; font-size: 28px; text-align: center;
+      background: linear-gradient(45deg, var(--accent), var(--warning));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; font-weight: 900; letter-spacing: 1px;
+    }
+    
+    h2 { 
+      margin: 24px 0 16px; font-size: 20px; color: var(--accent); 
+      border-bottom: 2px solid var(--border); padding-bottom: 8px;
+      font-weight: 700;
+    }
+    
+    .section {
+      margin: 24px 0; padding: 20px; background: rgba(15, 23, 42, 0.3);
+      border: 1px solid var(--border-light); border-radius: 12px;
+    }
+    
+    .row { 
+      display: grid; grid-template-columns: 160px 1fr; gap: 12px; 
+      align-items: center; margin: 16px 0; 
+    }
+    
+    .grid2 { 
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px; 
+      margin: 16px 0;
+    }
+    
+    label { 
+      font-size: 14px; color: var(--accent); font-weight: 600;
+    }
+    
     input, select {
-      background: #0b1220; color: #e5e7eb; border: 1px solid #253044; border-radius: 10px;
-      padding: 10px 12px; font-size: 16px; width: 100%; outline: none;
+      background: var(--input-bg); color: var(--text); 
+      border: 2px solid var(--border-light); border-radius: 10px;
+      padding: 12px 16px; font-size: 16px; width: 100%; outline: none;
+      transition: all 0.3s ease; box-sizing: border-box;
     }
-    input:focus, select:focus { border-color: #3b82f6; }
+    
+    input:focus, select:focus { 
+      border-color: var(--accent); 
+      box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1); 
+    }
+    
+    input:disabled { 
+      background: var(--muted); opacity: 0.6; cursor: not-allowed; 
+    }
+    
     .btn {
-      width: 100%; border: 0; padding: 12px 14px; font-weight: 600; border-radius: 10px; cursor: pointer;
-      background: #22c55e; color: #052e12; margin-top: 8px; font-size: 16px;
+      width: 100%; border: 0; padding: 14px 18px; font-weight: 700; 
+      border-radius: 12px; cursor: pointer; font-size: 16px;
+      background: var(--accent); color: #000; margin-top: 12px;
+      transition: all 0.3s ease; text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
+    
+    .btn:hover:not(:disabled) { 
+      background: #16a34a; transform: translateY(-1px);
+    }
+    
+    .btn:active { transform: translateY(1px); }
     .btn:disabled { opacity: .6; cursor: not-allowed; }
-    .btn.secondary { background: #ef4444; color: #2e0505; }
-    .btn.neutral { background: #3b82f6; color: #06122e; }
-    #msg { margin-top: 10px; font-size: 14px; padding: 10px 12px; border-radius: 10px; background: #0b1220; border: 1px solid #253044; }
-    .ok { border-color:#22c55e; color:#22c55e; }
-    .err { border-color:#ef4444; color:#ef9999; }
-    .muted { color:#9ca3af; }
-    .hint { margin-top: 12px; font-size: 12px; color:#94a3b8; line-height: 1.4; }
-    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    
+    .btn.secondary { background: var(--danger); color: #fff; }
+    .btn.neutral { background: var(--blue); color: #fff; }
+    .btn.warning { background: var(--warning); color: #000; }
+    .btn.outline { 
+      background: transparent; border: 2px solid var(--border-light); 
+      color: var(--text); 
+    }
+    
+    /* Time Chips */
+    .time-chips { 
+      display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; 
+    }
+    
+    .time-chip {
+      background: var(--input-bg); border: 2px solid var(--border-light); 
+      color: var(--text); padding: 8px 16px; border-radius: 25px; 
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      transition: all 0.3s ease; user-select: none;
+    }
+    
+    .time-chip:hover { transform: translateY(-2px); }
+    .time-chip.active { 
+      background: var(--accent); border-color: var(--accent); color: #000;
+      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+    }
+    
+    .time-chip.disabled { 
+      background: var(--muted); border-color: var(--muted); 
+      cursor: not-allowed; opacity: 0.5;
+    }
+    
+    .time-chip.editing { 
+      background: var(--warning); border-color: var(--warning); color: #000;
+      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+    }
+    
+    /* Status Messages */
+    #msg { 
+      margin-top: 16px; font-size: 14px; padding: 12px 16px; 
+      border-radius: 10px; background: var(--input-bg); 
+      border: 1px solid var(--border-light); transition: all 0.3s ease;
+    }
+    
+    .ok { border-color: var(--accent); color: var(--accent); }
+    .err { border-color: var(--danger); color: #ff9999; }
+    .muted { color: var(--muted); }
+    
+    /* Used Times Display */
+    .used-times {
+      background: rgba(239, 68, 68, 0.1); border: 1px solid var(--danger);
+      border-radius: 8px; padding: 12px; margin: 12px 0;
+    }
+    
+    .used-times-title {
+      color: var(--danger); font-weight: 600; margin-bottom: 8px;
+      font-size: 14px;
+    }
+    
+    .used-time-item {
+      display: inline-block; background: var(--danger); color: #fff;
+      padding: 4px 8px; border-radius: 12px; margin: 2px;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .used-time-item:hover {
+      background: #dc2626; transform: translateY(-1px);
+    }
+    
+    .time-status {
+      margin-top: 8px; font-size: 14px;
+    }
+    
+    .hint { 
+      margin-top: 20px; font-size: 12px; color: var(--muted); 
+      line-height: 1.5; padding: 12px; background: rgba(15, 23, 42, 0.5);
+      border-radius: 8px; border: 1px solid var(--border);
+    }
+    
+    .draw-count {
+      text-align: center; margin: 16px 0; font-size: 14px;
+      color: var(--accent); font-weight: 600;
+    }
+    
+    /* Cancel Edit Button */
+    .cancel-edit {
+      margin-top: 8px;
+    }
+    
+    @media (max-width: 640px) {
+      .wrap { padding: 16px; }
+      .card { padding: 20px; }
+      h1 { font-size: 24px; }
+      .row { grid-template-columns: 1fr; gap: 8px; }
+      .time-chips { gap: 6px; }
+      .time-chip { padding: 6px 12px; font-size: 12px; }
+    }
   </style>
 </head>
 <body>
@@ -38,112 +195,289 @@
     <div class="card">
       <h1>InstantCash Remote</h1>
 
-      <!-- controller + time -->
-      <div class="row">
-        <label for="pin">Controller PIN</label>
-        <input id="pin" type="password" placeholder="2468" autocomplete="off" />
-      </div>
-
-      <div class="row">
-        <label for="time">Select Time</label>
-        <select id="time">
-          <option value="">Choose a time…</option>
-          <!-- options get filled on load -->
-        </select>
-      </div>
-
-      <!-- picks -->
-      <div class="row">
-        <label for="p2">Pick 2</label>
-        <input id="p2" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="12" />
-      </div>
-
-      <div class="row">
-        <label for="p3">Pick 3</label>
-        <input id="p3" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="123" />
-      </div>
-
-      <div class="row">
-        <label for="p4">Pick 4</label>
-        <input id="p4" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="1234" />
-      </div>
-
-      <div class="row">
-        <label for="p5">Pick 5</label>
-        <input id="p5" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="12345" />
-      </div>
-
-      <button id="send" class="btn">Add to Today’s Draws</button>
-
-      <!-- TODAY'S STATE NUMBERS -->
-      <h2>Today’s State Numbers</h2>
-      <div class="row">
-        <label for="state">State / Draw</label>
-        <select id="state">
-          <option value="">Choose a state…</option>
-          <option>Georgia Morning</option>
-          <option>Georgia Midday</option>
-          <option>Georgia Night</option>
-          <option>New Jersey Day</option>
-          <option>New Jersey Night</option>
-          <option>Connecticut Day</option>
-          <option>Connecticut Night</option>
-          <option>Florida Day</option>
-          <option>Florida Night</option>
-          <option>Pennsylvania Day</option>
-          <option>Pennsylvania Night</option>
-          <option>New York Day</option>
-          <option>New York Night</option>
-        </select>
-      </div>
-
-      <div class="grid2">
-        <div>
-          <label for="sp3">State Pick 3</label>
-          <input id="sp3" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="123" />
-        </div>
-        <div>
-          <label for="sp4">State Pick 4</label>
-          <input id="sp4" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="1234" />
+      <!-- Controller PIN -->
+      <div class="section">
+        <div class="row">
+          <label for="pin">Controller PIN</label>
+          <input id="pin" type="password" placeholder="2468" autocomplete="off" />
         </div>
       </div>
 
-      <button id="sendState" class="btn neutral">Add Today’s State Numbers</button>
+      <!-- Today's Draws Section -->
+      <div class="section">
+        <h2>Today's Numbers</h2>
+        <div class="draw-count" id="drawCount">0 draws submitted</div>
+        
+        <!-- Time Selection -->
+        <div>
+          <label>Select Draw Time</label>
+          <div class="time-chips" id="timeChips"></div>
+          <div class="time-status" id="timeStatus"></div>
+          
+          <!-- Used Times Display -->
+          <div id="usedTimes" class="used-times" style="display:none;">
+            <div class="used-times-title">Already Used Times (click to edit):</div>
+            <div id="usedTimesList"></div>
+          </div>
+        </div>
 
-      <!-- RESET (two-step confirm) -->
-      <button id="reset" class="btn secondary">Reset All</button>
+        <!-- Pick Numbers -->
+        <div class="row">
+          <label for="p2">Pick 2</label>
+          <input id="p2" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="12" />
+        </div>
+
+        <div class="row">
+          <label for="p3">Pick 3</label>
+          <input id="p3" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="123" />
+        </div>
+
+        <div class="row">
+          <label for="p4">Pick 4</label>
+          <input id="p4" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="1234" />
+        </div>
+
+        <div class="row">
+          <label for="p5">Pick 5</label>
+          <input id="p5" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="12345" />
+        </div>
+
+        <button id="send" class="btn">Add to Today's Draws</button>
+        <button id="cancelEdit" class="btn outline cancel-edit" style="display:none;">Cancel Edit</button>
+      </div>
+
+      <!-- State Numbers Section -->
+      <div class="section">
+        <h2>Today's State Numbers</h2>
+        <div class="row">
+          <label for="state">State / Draw</label>
+          <select id="state">
+            <option value="">Choose a state…</option>
+            <option>Georgia Morning</option>
+            <option>Georgia Midday</option>
+            <option>Georgia Night</option>
+            <option>New Jersey Day</option>
+            <option>New Jersey Night</option>
+            <option>Connecticut Day</option>
+            <option>Connecticut Night</option>
+            <option>Florida Day</option>
+            <option>Florida Night</option>
+            <option>Pennsylvania Day</option>
+            <option>Pennsylvania Night</option>
+            <option>New York Day</option>
+            <option>New York Night</option>
+          </select>
+        </div>
+
+        <div class="grid2">
+          <div>
+            <label for="sp3">State Pick 3</label>
+            <input id="sp3" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="123" />
+          </div>
+          <div>
+            <label for="sp4">State Pick 4</label>
+            <input id="sp4" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="1234" />
+          </div>
+        </div>
+
+        <button id="sendState" class="btn neutral">Add Today's State Numbers</button>
+      </div>
+
+      <!-- Reset Section -->
+      <div class="section">
+        <h2 style="color: var(--danger);">Danger Zone</h2>
+        <button id="reset" class="btn secondary">Reset All</button>
+      </div>
 
       <div id="msg"></div>
 
       <div class="hint">
-        This remote talks to your server at <code>/api/remote</code> on the same device/network.
-        Keep the main screen open on your computer to see changes live.
+        📱 This remote talks to your server at <code>/api/remote</code> on the same device/network.<br>
+        🖥️ Keep the main screen open on your computer to see changes live.<br>
+        ⏰ Time slots must be filled sequentially. Click on used times to edit them.
       </div>
     </div>
   </div>
 
   <script>
+    // ------- Enhanced State Management -------
+    let drawsByTime = new Map(); // time -> {pick2, pick3, pick4, pick5}
+    let isEditMode = false;
+    let editingTime = null;
+    let selectedTime = "";
+
     // ------- helpers -------
     function show(id, text, cls) {
       const el = document.getElementById(id);
       el.className = cls || "";
       el.textContent = text;
     }
-    function fillTimes() {
-      const sel = document.getElementById('time');
-      for (let h = 10; h < 22; h++) {
-        for (const m of [0, 30]) {
-          const ampm = h >= 12 ? 'PM' : 'AM';
-          const displayHour = ((h + 11) % 12) + 1; // 13->1, 12->12
-          const label = `${displayHour}:${m === 0 ? '00' : '30'} ${ampm}`;
-          const opt = document.createElement('option');
-          opt.value = label;
-          opt.textContent = label;
-          sel.appendChild(opt);
+
+    function buildTimeOptions() {
+      const times = [];
+      for (let hour = 10; hour < 22; hour++) {
+        const displayHour = hour > 12 ? hour - 12 : hour;
+        const ampm = hour >= 12 ? "PM" : "AM";
+        times.push(`${displayHour}:00 ${ampm}`);
+        times.push(`${displayHour}:30 ${ampm}`);
+      }
+      return times;
+    }
+
+    function getNextAvailableTime() {
+      const allTimes = buildTimeOptions();
+      for (const time of allTimes) {
+        if (!drawsByTime.has(time)) {
+          return time;
         }
       }
+      return null; // All slots filled
     }
+
+    function canSelectTime(time) {
+      if (isEditMode) {
+        // In edit mode, only allow selection of the currently editing time
+        return time === editingTime;
+      }
+      
+      // For new draws, must be the next sequential slot
+      const nextTime = getNextAvailableTime();
+      return time === nextTime;
+    }
+
+    function updateTimesDisplay() {
+      const nextTime = getNextAvailableTime();
+      const timeStatusEl = document.getElementById('timeStatus');
+      const usedTimesEl = document.getElementById('usedTimes');
+      const usedTimesListEl = document.getElementById('usedTimesList');
+      
+      // Update available slots info
+      if (drawsByTime.size > 0) {
+        usedTimesEl.style.display = 'block';
+        usedTimesListEl.innerHTML = Array.from(drawsByTime.keys())
+          .map(time => `<span class="used-time-item" onclick="editDraw('${time}')">${time}</span>`)
+          .join('');
+      } else {
+        usedTimesEl.style.display = 'none';
+      }
+
+      // Update next available time display
+      if (nextTime && !isEditMode) {
+        timeStatusEl.innerHTML = `<span class="ok">Next Available: ${nextTime}</span>`;
+      } else if (isEditMode && editingTime) {
+        timeStatusEl.innerHTML = `<span style="color: var(--warning);">Editing: ${editingTime} (time cannot be changed)</span>`;
+      } else if (!nextTime) {
+        timeStatusEl.innerHTML = `<span class="err">All time slots filled</span>`;
+      }
+    }
+
+    function updateDrawCount() {
+      document.getElementById('drawCount').textContent = `${drawsByTime.size} draws submitted`;
+    }
+
+    function buildTimeChips() {
+      const timeChipsEl = document.getElementById('timeChips');
+      timeChipsEl.innerHTML = "";
+      const nextTime = getNextAvailableTime();
+      
+      buildTimeOptions().forEach(time => {
+        const isFilled = drawsByTime.has(time);
+        const canSelect = canSelectTime(time);
+        
+        let chipClass = "time-chip";
+        
+        if (isEditMode) {
+          if (time === editingTime) {
+            chipClass += " editing active"; // Show editing time with special styling
+          } else {
+            chipClass += " disabled"; // Disable all other times in edit mode
+          }
+        } else {
+          if (isFilled) {
+            chipClass += " disabled"; // Filled slots are disabled in add mode
+          } else if (time === nextTime) {
+            // Next available slot is selectable
+          } else {
+            chipClass += " disabled"; // Future slots are disabled
+          }
+        }
+        
+        const chip = document.createElement('div');
+        chip.className = chipClass;
+        chip.textContent = time;
+        
+        if (canSelect) {
+          chip.addEventListener('click', () => {
+            if (isEditMode && time === editingTime) {
+              // Already selected in edit mode, do nothing
+              return;
+            } else if (!isEditMode && time === nextTime) {
+              // Select next available time
+              Array.from(timeChipsEl.children).forEach(c => c.classList.remove('active'));
+              chip.classList.add('active');
+              selectedTime = time;
+              document.getElementById('timeStatus').innerHTML = `<span class="ok">Selected: ${time}</span>`;
+            }
+          });
+        }
+        
+        timeChipsEl.appendChild(chip);
+      });
+    }
+
+    function editDraw(time) {
+      const draw = drawsByTime.get(time);
+      if (!draw) return;
+
+      isEditMode = true;
+      editingTime = time;
+      selectedTime = time; // Ensure selectedTime is set correctly
+
+      // Populate form with existing data
+      document.getElementById('p2').value = draw.pick2 || "";
+      document.getElementById('p3').value = draw.pick3 || "";
+      document.getElementById('p4').value = draw.pick4 || "";
+      document.getElementById('p5').value = draw.pick5 || "";
+
+      // Update UI for edit mode
+      const sendBtn = document.getElementById('send');
+      const cancelBtn = document.getElementById('cancelEdit');
+      
+      sendBtn.textContent = "UPDATE DRAW";
+      sendBtn.className = "btn warning";
+      cancelBtn.style.display = "block";
+
+      buildTimeChips();
+      updateTimesDisplay();
+      show('msg', `Editing ${time} - Update the numbers and click UPDATE DRAW`, 'muted');
+    }
+
+    function cancelEdit() {
+      isEditMode = false;
+      editingTime = null;
+      selectedTime = "";
+
+      // Clear form
+      document.getElementById('p2').value = "";
+      document.getElementById('p3').value = "";
+      document.getElementById('p4').value = "";
+      document.getElementById('p5').value = "";
+
+      // Reset button
+      const sendBtn = document.getElementById('send');
+      const cancelBtn = document.getElementById('cancelEdit');
+      
+      sendBtn.textContent = "Add to Today's Draws";
+      sendBtn.className = "btn";
+      cancelBtn.style.display = "none";
+
+      buildTimeChips();
+      updateTimesDisplay();
+      show('msg', '', '');
+    }
+
     function cleanDigits(str) { return (str || "").replace(/\D+/g, ""); }
+    
     function validatePicks(p2, p3, p4, p5) {
       const hasAny = !!(p2 || p3 || p4 || p5);
       if (!hasAny) return "Enter at least one of Pick 2, Pick 3, Pick 4 or Pick 5.";
@@ -154,13 +488,22 @@
       return null;
     }
 
+    // Make editDraw globally accessible
+    window.editDraw = editDraw;
+
     // ------- main -------
     document.addEventListener('DOMContentLoaded', () => {
-      fillTimes();
+      buildTimeChips();
+      updateTimesDisplay();
+      updateDrawCount();
 
       const sendBtn = document.getElementById('send');
       const resetBtn = document.getElementById('reset');
       const sendStateBtn = document.getElementById('sendState');
+      const cancelEditBtn = document.getElementById('cancelEdit');
+
+      // Cancel edit button
+      cancelEditBtn.addEventListener('click', cancelEdit);
 
       // track two-step confirm for Reset
       let resetArmed = false;
@@ -169,14 +512,21 @@
       // Add to Today's Draws
       sendBtn.addEventListener('click', async () => {
         const pin = document.getElementById('pin').value.trim();
-        const selectedTime = document.getElementById('time').value.trim();
         const p2 = cleanDigits(document.getElementById('p2').value);
         const p3 = cleanDigits(document.getElementById('p3').value);
         const p4 = cleanDigits(document.getElementById('p4').value);
         const p5 = cleanDigits(document.getElementById('p5').value);
 
         if (!pin) { show('msg', 'Enter PIN', 'err'); return; }
-        if (!selectedTime) { show('msg', 'Select a time', 'err'); return; }
+        
+        if (isEditMode) {
+          if (!editingTime) { show('msg', 'No draw selected for editing', 'err'); return; }
+          selectedTime = editingTime; // Force selectedTime to be the editing time
+        } else {
+          const nextTime = getNextAvailableTime();
+          if (!selectedTime) { show('msg', 'Select the next available time slot', 'err'); return; }
+          if (selectedTime !== nextTime) { show('msg', `Must fill slots in order. Next: ${nextTime}`, 'err'); return; }
+        }
 
         const err = validatePicks(p2, p3, p4, p5);
         if (err) { show('msg', '❌ ' + err, 'err'); return; }
@@ -189,15 +539,44 @@
           const res = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pin, selectedTime, pick2: p2, pick3: p3, pick4: p4, pick5: p5 })
+            body: JSON.stringify({ 
+              pin, 
+              selectedTime, 
+              pick2: p2, 
+              pick3: p3, 
+              pick4: p4, 
+              pick5: p5,
+              isEdit: isEditMode
+            })
           });
           const data = await res.json();
           if (data.ok) {
-            show('msg', '✅ Sent! Check the main screen.', 'ok');
-            document.getElementById('p2').value = '';
-            document.getElementById('p3').value = '';
-            document.getElementById('p4').value = '';
-            document.getElementById('p5').value = '';
+            // Update local storage - this ensures we update the existing entry
+            drawsByTime.set(selectedTime, {
+              pick2: p2,
+              pick3: p3,
+              pick4: p4,
+              pick5: p5
+            });
+
+            const action = isEditMode ? "updated" : "added";
+            show('msg', `✅ Draw ${action} successfully!`, 'ok');
+            
+            // Clear form and exit edit mode
+            if (isEditMode) {
+              cancelEdit();
+            } else {
+              document.getElementById('p2').value = '';
+              document.getElementById('p3').value = '';
+              document.getElementById('p4').value = '';
+              document.getElementById('p5').value = '';
+              selectedTime = "";
+            }
+            
+            // Update UI
+            buildTimeChips();
+            updateTimesDisplay();
+            updateDrawCount();
           } else {
             show('msg', `❌ ${data.error || 'Server rejected the request'}`, 'err');
           }
@@ -236,7 +615,7 @@
           });
           const data = await res.json();
           if (data.ok) {
-            show('msg', `✅ Added today’s state numbers for ${state}.`, 'ok');
+            show('msg', `✅ Added today's state numbers for ${state}.`, 'ok');
             // keep the state selected so you can keep sending; clear the digits
             document.getElementById('sp3').value = '';
             document.getElementById('sp4').value = '';
@@ -288,6 +667,14 @@
           const data = await res.json();
           if (data.ok) {
             show('msg', '🧹 All cleared on the main screen.', 'ok');
+            
+            // Reset local state
+            drawsByTime.clear();
+            
+            // Update UI
+            buildTimeChips();
+            updateTimesDisplay();
+            updateDrawCount();
           } else {
             show('msg', `❌ ${data.error || 'Reset failed'}`, 'err');
           }
@@ -296,6 +683,17 @@
         } finally {
           resetBtn.disabled = false;
         }
+      });
+
+      // Input validation for numeric fields
+      ['p2', 'p3', 'p4', 'p5', 'sp3', 'sp4'].forEach(id => {
+        const el = document.getElementById(id);
+        el.addEventListener('input', () => {
+          const max = el.getAttribute('maxlength');
+          let v = cleanDigits(el.value);
+          if (max) v = v.slice(0, parseInt(max, 10));
+          el.value = v;
+        });
       });
     });
   </script>

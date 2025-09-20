@@ -162,6 +162,64 @@ const StateTicker = memo(function StateTicker({ results }: { results: StateResul
    Main page component
 -------------------------------------------- */
 export default function InstantCashUI() {
+  // Handle remote:update events (edit or add from remote)
+  const handleRemoteUpdate = useCallback((data: any) => {
+    if (data && data.selectedTime) {
+      setNumberBoxes(prev => {
+        const newPick2 = data.pick2 ? data.pick2.split("").map((n: string) => parseInt(n)) : [];
+        const newPick3 = data.pick3 ? data.pick3.split("").map((n: string) => parseInt(n)) : [];
+        const newPick4 = data.pick4 ? data.pick4.split("").map((n: string) => parseInt(n)) : [];
+        const newPick5 = data.pick5 ? data.pick5.split("").map((n: string) => parseInt(n)) : [];
+
+        // Prefer matching by originalTime if present (for edits that change the time slot)
+        let foundIdx = -1;
+        if (data.originalTime) {
+          foundIdx = prev.findIndex(box => box.time === data.originalTime);
+        }
+        // If not found by originalTime, try selectedTime (for new adds or legacy clients)
+        if (foundIdx === -1) {
+          foundIdx = prev.findIndex(box => box.time === data.selectedTime);
+        }
+
+        if (foundIdx !== -1) {
+          // If numbers and time are identical, just return prev (no-op)
+          const box = prev[foundIdx];
+          const same =
+            JSON.stringify(box.pick2) === JSON.stringify(newPick2) &&
+            JSON.stringify(box.pick3) === JSON.stringify(newPick3) &&
+            JSON.stringify(box.pick4) === JSON.stringify(newPick4) &&
+            JSON.stringify(box.pick5) === JSON.stringify(newPick5) &&
+            box.time === data.selectedTime;
+          if (same) return prev;
+          // Otherwise, update the box (including time slot)
+          const updated = [...prev];
+          updated[foundIdx] = {
+            ...box,
+            pick2: newPick2,
+            pick3: newPick3,
+            pick4: newPick4,
+            pick5: newPick5,
+            time: data.selectedTime
+          };
+          return updated;
+        }
+        // If not found, add as new
+        const now = new Date();
+        const drawTime = now;
+        const newBox = {
+          id: Date.now().toString(),
+          date: now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+          time: data.selectedTime,
+          drawTime,
+          pick2: newPick2,
+          pick3: newPick3,
+          pick4: newPick4,
+          pick5: newPick5
+        };
+        return [newBox, ...prev];
+      });
+    }
+  }, []);
   const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 })
   const [pin, setPin] = useState("")
   const socketRef = useRef<any>(null)
@@ -298,32 +356,30 @@ export default function InstantCashUI() {
     }
   }, [isDropdownOpen])
 
-  // Socket state - FIXED VERSION
+  // Socket state - with remote:update handler
   useEffect(() => {
-    socketRef.current = getSocket()
-    
+    socketRef.current = getSocket();
+
     const onState = (st: any) => {
-      console.log("Received state update:", st)
-      setNumberBoxes(st.numberBoxes || [])
-      setStateResults(st.stateResults || [])
-    }
-    
+      console.log("Received state update:", st);
+      setNumberBoxes(st.numberBoxes || []);
+      setStateResults(st.stateResults || []);
+    };
+
     const onHello = (data: any) => {
-      console.log("Socket connected:", data)
-    }
-    
+      console.log("Socket connected:", data);
+    };
+
     const onResultsUpdate = (results: any) => {
-      console.log("Received results update:", results)
-      
+      console.log("Received results update:", results);
       // Create a new number box from the results
-      const now = new Date()
-      const drawTime = now
+      const now = new Date();
+      const drawTime = now;
       const displayTime = now.toLocaleTimeString("en-US", {
         hour: "numeric",
         minute: "2-digit",
         hour12: true
-      })
-      
+      });
       // Format the results into a number box
       const newBox: NumberBox = {
         id: Date.now().toString(),
@@ -334,27 +390,30 @@ export default function InstantCashUI() {
         pick3: results.P3 ? results.P3.split("").map((n: string) => parseInt(n)) : [],
         pick4: results.P4 ? results.P4.split("").map((n: string) => parseInt(n)) : [],
         pick5: results.P5 ? results.P5.split("").map((n: string) => parseInt(n)) : []
-      }
-      
-      // Add the new box to the state
-      setNumberBoxes(prev => [newBox, ...prev])
-    }
-    
-    socketRef.current.on("state", onState)
-    socketRef.current.on("hello", onHello)
-    socketRef.current.on("results:update", onResultsUpdate)
-    
+      };
+      setNumberBoxes(prev => [newBox, ...prev]);
+    };
+
+    const onRemoteUpdate = (data: any) => {
+      handleRemoteUpdate(data);
+    };
+
+    socketRef.current.on("state", onState);
+    socketRef.current.on("hello", onHello);
+    socketRef.current.on("results:update", onResultsUpdate);
+    socketRef.current.on("remote:update", onRemoteUpdate);
     // Request initial state when connecting
-    socketRef.current.emit("getState")
-    
+    socketRef.current.emit("getState");
+
     return () => {
       if (socketRef.current) {
-        socketRef.current.off("state", onState)
-        socketRef.current.off("hello", onHello)
-        socketRef.current.off("results:update", onResultsUpdate)
+        socketRef.current.off("state", onState);
+        socketRef.current.off("hello", onHello);
+        socketRef.current.off("results:update", onResultsUpdate);
+        socketRef.current.off("remote:update", onRemoteUpdate);
       }
-    }
-  }, [])
+    };
+  }, [handleRemoteUpdate]);
 
   const getNextDrawTime = useCallback(() => {
     const now = new Date()
